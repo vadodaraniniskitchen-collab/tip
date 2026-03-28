@@ -1,0 +1,3202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TipFlow — Staff Contribution Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #16161f;
+    --surface3: #1c1c28;
+    --border: #2a2a3a;
+    --border2: #333348;
+    --text: #e8e8f0;
+    --text2: #9090aa;
+    --text3: #5a5a72;
+    --accent: #6c63ff;
+    --accent2: #8b83ff;
+    --accent-glow: rgba(108,99,255,0.3);
+    --green: #22d3a5;
+    --green-dim: rgba(34,211,165,0.12);
+    --red: #ff5b6a;
+    --red-dim: rgba(255,91,106,0.12);
+    --amber: #f59e0b;
+    --amber-dim: rgba(245,158,11,0.12);
+    --blue: #38bdf8;
+    --blue-dim: rgba(56,189,248,0.12);
+    --pickup: #6c63ff;
+    --pickup-dim: rgba(108,99,255,0.15);
+    --hk: #22d3a5;
+    --hk-dim: rgba(34,211,165,0.15);
+    --wp: #f59e0b;
+    --wp-dim: rgba(245,158,11,0.15);
+    --sidebar-w: 240px;
+    --radius: 14px;
+    --radius-sm: 8px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    overflow-x: hidden;
+  }
+
+  /* ─── SIDEBAR ─── */
+  #sidebar {
+    width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 100;
+    transition: transform 0.3s ease;
+  }
+
+  .sidebar-brand {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .brand-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 22px;
+    background: linear-gradient(135deg, #6c63ff, #22d3a5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.5px;
+  }
+
+  .brand-sub {
+    font-size: 11px;
+    color: var(--text3);
+    font-family: 'DM Mono', monospace;
+    margin-top: 3px;
+    letter-spacing: 0.5px;
+  }
+
+  .sidebar-date {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text3);
+  }
+
+  .sidebar-date span {
+    display: block;
+    color: var(--green);
+    font-size: 13px;
+    font-weight: 500;
+    margin-top: 2px;
+  }
+
+  nav {
+    flex: 1;
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow-y: auto;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--text2);
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+    user-select: none;
+  }
+
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+
+  .nav-item.active {
+    background: var(--accent-glow);
+    color: var(--accent2);
+    border-color: rgba(108,99,255,0.3);
+  }
+
+  .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+
+  .sidebar-footer {
+    padding: 16px 12px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* ─── MAIN ─── */
+  #main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+
+  .topbar-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .menu-toggle {
+    display: none;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 18px;
+  }
+
+  .page { display: none; padding: 32px; animation: fadeIn 0.2s ease; }
+  .page.active { display: block; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  /* ─── CARDS ─── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    transition: border-color 0.2s;
+  }
+
+  .card:hover { border-color: var(--border2); }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 16px;
+  }
+
+  /* ─── GRID ─── */
+  .grid { display: grid; gap: 16px; }
+  .g2 { grid-template-columns: repeat(2, 1fr); }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+
+  /* ─── STAT CARDS ─── */
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent-color, var(--accent));
+  }
+
+  .stat-card:hover { border-color: var(--border2); transform: translateY(-1px); }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--text3);
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  .stat-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    margin: 6px 0 4px;
+    color: var(--text);
+  }
+
+  .stat-sub {
+    font-size: 12px;
+    color: var(--text3);
+  }
+
+  .stat-icon {
+    position: absolute;
+    top: 20px; right: 20px;
+    font-size: 24px;
+    opacity: 0.3;
+  }
+
+  /* ─── CATEGORY CARDS ─── */
+  .cat-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    transition: all 0.2s;
+  }
+
+  .cat-card:hover { border-color: var(--border2); }
+
+  .cat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .cat-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+  }
+
+  .cat-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    padding: 4px 8px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+
+  .cat-rows { display: flex; flex-direction: column; gap: 10px; }
+
+  .cat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+  }
+
+  .cat-row-label { color: var(--text2); }
+
+  .cat-row-val {
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+  }
+
+  .cat-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 8px 0;
+  }
+
+  .cat-balance {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  /* ─── TABLE ─── */
+  .table-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  thead th {
+    background: var(--surface2);
+    padding: 12px 16px;
+    text-align: left;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+
+  tbody tr:hover { background: var(--surface2); }
+
+  tbody td {
+    padding: 12px 16px;
+    color: var(--text2);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  tbody td:first-child { color: var(--text); font-weight: 500; }
+
+  .mono { font-family: 'DM Mono', monospace; }
+
+  /* ─── FORMS ─── */
+  .form-group { margin-bottom: 16px; }
+
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--text3);
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 8px;
+  }
+
+  input, select, textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    appearance: none;
+  }
+
+  input:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  input::placeholder { color: var(--text3); }
+
+  select option { background: var(--surface2); }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 11px 20px;
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 4px 14px var(--accent-glow);
+  }
+
+  .btn-primary:hover {
+    background: var(--accent2);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px var(--accent-glow);
+  }
+
+  .btn-primary:active { transform: none; }
+
+  .btn-ghost {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text2);
+  }
+
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+
+  .btn-danger {
+    background: var(--red-dim);
+    border-color: rgba(255,91,106,0.3);
+    color: var(--red);
+  }
+
+  .btn-danger:hover { background: rgba(255,91,106,0.25); }
+
+  .btn-green {
+    background: var(--green-dim);
+    border-color: rgba(34,211,165,0.3);
+    color: var(--green);
+  }
+
+  .btn-green:hover { background: rgba(34,211,165,0.25); }
+
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn-full { width: 100%; }
+
+  .quick-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+  .quick-btn {
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text2);
+    padding: 7px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .quick-btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  /* ─── PREVIEW BOX ─── */
+  .preview-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-top: 16px;
+  }
+
+  .preview-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 14px;
+  }
+
+  .preview-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .preview-row:last-child { border-bottom: none; }
+
+  .preview-row-label { color: var(--text2); }
+
+  .preview-row-val {
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .preview-highlight {
+    background: var(--accent-glow);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    margin-top: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .info-banner {
+    background: var(--green-dim);
+    border: 1px solid rgba(34,211,165,0.25);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--green);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .warn-banner {
+    background: var(--red-dim);
+    border: 1px solid rgba(255,91,106,0.25);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--red);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* ─── BADGES ─── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .badge-red { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,91,106,0.3); }
+  .badge-green { background: var(--green-dim); color: var(--green); border: 1px solid rgba(34,211,165,0.3); }
+  .badge-amber { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+  .badge-blue { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(56,189,248,0.3); }
+  .badge-accent { background: var(--accent-glow); color: var(--accent2); border: 1px solid rgba(108,99,255,0.3); }
+
+  /* ─── TOAST ─── */
+  #toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .toast {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    padding: 12px 18px;
+    font-size: 13px;
+    color: var(--text);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    animation: toastIn 0.3s ease;
+    max-width: 320px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .toast.success { border-left: 3px solid var(--green); }
+  .toast.error { border-left: 3px solid var(--red); }
+  .toast.info { border-left: 3px solid var(--accent); }
+  .toast.warning { border-left: 3px solid var(--amber); }
+
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @keyframes toastOut {
+    to { opacity: 0; transform: translateX(20px); height: 0; padding: 0; margin: 0; }
+  }
+
+  /* ─── HISTORY ITEMS ─── */
+  .history-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 18px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    transition: border-color 0.15s;
+  }
+
+  .history-item:hover { border-color: var(--border2); }
+
+  .history-info { flex: 1; }
+
+  .history-title { font-weight: 500; font-size: 14px; margin-bottom: 3px; }
+
+  .history-meta {
+    font-size: 12px;
+    color: var(--text3);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .history-amount {
+    font-family: 'Syne', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  /* ─── RULES PAGE ─── */
+  .rule-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .rule-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .rule-body { padding: 16px 20px; }
+
+  .rule-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .rule-row:last-child { border-bottom: none; }
+  .rule-day { color: var(--text2); }
+  .rule-amount { font-family: 'DM Mono', monospace; font-weight: 500; }
+
+  /* ─── SECTION HEADER ─── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .section-sub {
+    font-size: 13px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+
+  /* ─── WAITER ROW ─── */
+  .waiter-row td.defaulter { color: var(--red) !important; font-weight: 600; }
+  .waiter-row td.advance-val { color: var(--green) !important; font-weight: 600; }
+
+  /* ─── MODAL ─── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 500;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 28px;
+    width: 420px;
+    max-width: calc(100vw - 40px);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    animation: fadeIn 0.2s ease;
+  }
+
+  .modal-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    margin-bottom: 20px;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    justify-content: flex-end;
+  }
+
+  /* ─── EMPTY STATE ─── */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text3);
+  }
+
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-text { font-size: 14px; }
+
+  /* ─── SCROLLBAR ─── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+  /* ─── DIVIDER ─── */
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* ─── MOBILE ─── */
+  @media (max-width: 768px) {
+    :root { --sidebar-w: 0px; }
+
+    #sidebar {
+      transform: translateX(-240px);
+      width: 240px;
+    }
+
+    #sidebar.open { transform: translateX(0); }
+
+    #main { margin-left: 0; }
+
+    .menu-toggle { display: flex; }
+
+    .g4, .g3 { grid-template-columns: repeat(2, 1fr); }
+    .g2 { grid-template-columns: 1fr; }
+
+    .page { padding: 20px 16px; }
+
+    .topbar { padding: 14px 16px; }
+
+    .overlay-bg {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 99;
+    }
+
+    .overlay-bg.open { display: block; }
+  }
+
+  @media (max-width: 480px) {
+    .g4, .g3, .g2 { grid-template-columns: 1fr; }
+  }
+
+  /* ─── UTILS ─── */
+  .mt-4 { margin-top: 16px; }
+  .mt-6 { margin-top: 24px; }
+  .mt-8 { margin-top: 32px; }
+  .mb-4 { margin-bottom: 16px; }
+  .flex { display: flex; }
+  .items-center { align-items: center; }
+  .justify-between { justify-content: space-between; }
+  .gap-2 { gap: 8px; }
+  .gap-3 { gap: 12px; }
+  .text-green { color: var(--green); }
+  .text-red { color: var(--red); }
+  .text-amber { color: var(--amber); }
+  .text-accent { color: var(--accent2); }
+  .text-muted { color: var(--text3); }
+  .text-sm { font-size: 12px; }
+  .font-mono { font-family: 'DM Mono', monospace; }
+  .font-syne { font-family: 'Syne', sans-serif; font-weight: 700; }
+
+  .pickup-color { color: var(--pickup); }
+  .hk-color { color: var(--hk); }
+  .wp-color { color: var(--wp); }
+
+  .priority-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .priority-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  /* ─── MODE TOGGLE ─── */
+  #modeBanner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 32px;
+    font-size: 13px;
+    font-family: 'DM Mono', monospace;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+    transition: all 0.25s;
+  }
+
+  #modeBanner.view-mode {
+    background: rgba(245,158,11,0.08);
+    border-bottom-color: rgba(245,158,11,0.25);
+    color: var(--amber);
+  }
+
+  #modeBanner.edit-mode {
+    background: rgba(34,211,165,0.08);
+    border-bottom-color: rgba(34,211,165,0.25);
+    color: var(--green);
+  }
+
+  .mode-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+  }
+
+  .mode-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .view-mode .mode-dot { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .edit-mode .mode-dot { background: var(--green); box-shadow: 0 0 6px var(--green); animation: modePulse 2s infinite; }
+
+  @keyframes modePulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .mode-actions { display: flex; gap: 8px; align-items: center; }
+
+  .btn-mode-enter {
+    background: rgba(245,158,11,0.15);
+    border: 1px solid rgba(245,158,11,0.4);
+    color: var(--amber);
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-mode-enter:hover { background: rgba(245,158,11,0.28); }
+
+  .btn-mode-exit {
+    background: rgba(34,211,165,0.12);
+    border: 1px solid rgba(34,211,165,0.35);
+    color: var(--green);
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-mode-exit:hover { background: rgba(34,211,165,0.22); }
+
+  /* View-mode disabled state — subtle visual cue */
+  .view-mode-disabled {
+    opacity: 0.38 !important;
+    pointer-events: none !important;
+    cursor: not-allowed !important;
+    filter: grayscale(60%);
+    user-select: none;
+  }
+
+  /* View-mode overlay blocker on forms */
+  .view-mode-block {
+    position: relative;
+  }
+
+  .view-mode-block::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    cursor: not-allowed;
+    border-radius: var(--radius);
+  }
+
+  /* Mode passcode modal */
+  #modePasscodeModal .modal {
+    width: 380px;
+  }
+
+  /* ─── DELETE OPTION CARDS ─── */
+  .delete-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    background: var(--surface2);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .delete-option:hover { border-color: var(--border2); background: var(--surface3); }
+  .delete-option.selected-keep { border-color: var(--accent); background: var(--accent-glow); }
+  .delete-option.selected-all  { border-color: var(--red); background: var(--red-dim); }
+  .delete-opt-radio {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--border2);
+    flex-shrink: 0;
+    margin-top: 2px;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .delete-opt-radio.checked-keep {
+    border-color: var(--accent);
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .delete-opt-radio.checked-keep::after,
+  .delete-opt-radio.checked-all::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    background: #fff;
+    border-radius: 50%;
+  }
+  .delete-opt-radio.checked-all {
+    border-color: var(--red);
+    background: var(--red);
+    box-shadow: 0 0 0 3px var(--red-dim);
+  }
+  .delete-opt-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .delete-opt-sub { font-size: 12px; color: var(--text3); line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<div class="overlay-bg" id="overlayBg" onclick="closeSidebar()"></div>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-name">TipFlow</div>
+    <div class="brand-sub">STAFF CONTRIBUTION MGR</div>
+  </div>
+  <div class="sidebar-date">
+    TODAY
+    <span id="sidebarDate">—</span>
+  </div>
+  <nav>
+    <div class="nav-item active" onclick="showPage('dashboard')">
+      <span class="icon">◈</span> Dashboard
+    </div>
+    <div class="nav-item" onclick="showPage('waiters')">
+      <span class="icon">◉</span> Waiters
+    </div>
+    <div class="nav-item" onclick="showPage('collection')">
+      <span class="icon">◎</span> Collection
+    </div>
+    <div class="nav-item" onclick="showPage('withdrawal')">
+      <span class="icon">⊖</span> Withdrawal
+    </div>
+    <div class="nav-item" onclick="showPage('history')">
+      <span class="icon">⊟</span> History
+    </div>
+    <div class="nav-item" onclick="showPage('rules')">
+      <span class="icon">⊕</span> Rules
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <button class="btn btn-ghost btn-sm" onclick="exportCSVBackup()">⬇ Export CSV</button>
+    <button class="btn btn-ghost btn-sm" onclick="showImportModal()">⬆ Import CSV</button>
+    <button class="btn btn-ghost btn-sm" onclick="showChangePasscodeModal()" style="border-color:rgba(108,99,255,0.3);color:var(--accent2)">🔑 Change Passcode</button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main id="main">
+  <div class="topbar">
+    <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+    <div class="topbar-title" id="topbarTitle">Dashboard</div>
+    <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text3)" id="topbarDate"></div>
+  </div>
+
+  <!-- MODE BANNER -->
+  <div id="modeBanner" class="view-mode">
+    <div class="mode-indicator">
+      <span class="mode-dot"></span>
+      <span id="modeLabel">🔒 View Mode — Read Only</span>
+    </div>
+    <div class="mode-actions">
+      <span id="modeHint" style="font-size:11px;opacity:0.7">Data is protected. Enter Edit Mode to make changes.</span>
+      <button class="btn-mode-enter" id="btnEnterEdit" onclick="promptEnterEditMode()">✎ Enter Edit Mode</button>
+      <button class="btn-mode-exit" id="btnExitEdit" onclick="exitEditMode()" style="display:none">✕ Back to View Mode</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="grid g4 mb-4" id="dashStats"></div>
+    <div class="grid g3 mt-4" id="dashCats"></div>
+    <div class="card mt-6">
+      <div class="section-header">
+        <div>
+          <div class="card-title" style="margin-bottom:2px">Waiter Summary</div>
+        </div>
+        <div class="flex gap-2">
+          <span class="badge badge-red" id="defaulterCount">0 defaulters</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="dashWaiterTable">
+          <thead><tr>
+            <th>Waiter</th>
+            <th>Joined</th>
+            <th>Last Paid</th>
+            <th>Total Paid</th>
+            <th>Pending</th>
+            <th>Advance</th>
+            <th>Status</th>
+          </tr></thead>
+          <tbody id="dashWaiterBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- WAITERS -->
+  <div class="page" id="page-waiters">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Waiters</div>
+        <div class="section-sub">Manage staff members</div>
+      </div>
+      <button class="btn btn-primary" onclick="showAddWaiterModal()">+ Add Waiter</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Join Date</th>
+            <th>Last Paid</th>
+            <th>Total Paid</th>
+            <th>Pending ₿</th>
+            <th>Pending HK</th>
+            <th>Pending WP</th>
+            <th>Advance</th>
+            <th>Action</th>
+          </tr></thead>
+          <tbody id="waiterTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLLECTION -->
+  <div class="page" id="page-collection">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Collection Entry</div>
+        <div class="section-sub">Enter amount — system handles the rest</div>
+      </div>
+    </div>
+    <div class="grid g2 gap-3">
+      <div>
+        <div class="card">
+          <div class="form-group">
+            <label>Select Waiter</label>
+            <select id="collWaiter" onchange="updateCollectionPreview()">
+              <option value="">— choose waiter —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Payment Amount (₹)</label>
+            <input type="number" id="collAmount" placeholder="0" min="0"
+              oninput="updateCollectionPreview()" />
+            <div class="quick-btns">
+              <div class="quick-btn" onclick="addQuickAmount(10)">+₹10</div>
+              <div class="quick-btn" onclick="addQuickAmount(20)">+₹20</div>
+              <div class="quick-btn" onclick="addQuickAmount(50)">+₹50</div>
+              <div class="quick-btn" onclick="addQuickAmount(100)">+₹100</div>
+              <div class="quick-btn" onclick="addQuickAmount(200)">+₹200</div>
+              <div class="quick-btn" onclick="addQuickAmount(500)">+₹500</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Note (optional)</label>
+            <input type="text" id="collNote" placeholder="e.g. partial payment" />
+          </div>
+          <button class="btn btn-primary btn-full mt-4" onclick="addPayment()">
+            ✓ Record Payment
+          </button>
+        </div>
+      </div>
+      <div id="collPreview">
+        <div class="card" style="height:100%;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:14px;text-align:center;flex-direction:column;gap:12px">
+          <div style="font-size:32px">◎</div>
+          Select a waiter and enter amount to see preview
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WITHDRAWAL -->
+  <div class="page" id="page-withdrawal">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Withdrawal</div>
+        <div class="section-sub">Withdraw from category balance</div>
+      </div>
+    </div>
+    <div class="grid g2 gap-3">
+      <div class="card">
+        <div class="form-group">
+          <label>Category</label>
+          <select id="wdCategory" onchange="updateWithdrawalInfo()">
+            <option value="pickup">🚗 Pickup</option>
+            <option value="hk">🧹 Housekeeping</option>
+            <option value="wp">🧽 Wiping</option>
+          </select>
+        </div>
+        <div id="wdBalanceInfo" class="info-banner" style="margin-bottom:16px">
+          <span>⬡</span> <span id="wdBalText">Select category to see balance</span>
+        </div>
+        <div class="form-group">
+          <label>Amount to Withdraw (₹)</label>
+          <input type="number" id="wdAmount" placeholder="0" min="1"
+            oninput="updateWithdrawalInfo()" />
+          <div class="quick-btns">
+            <div class="quick-btn" onclick="setWdAmount(50)">₹50</div>
+            <div class="quick-btn" onclick="setWdAmount(100)">₹100</div>
+            <div class="quick-btn" onclick="setWdAmount(200)">₹200</div>
+            <div class="quick-btn" onclick="setWdAmount(500)">₹500</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Note (optional)</label>
+          <input type="text" id="wdNote" placeholder="e.g. weekly payment" />
+        </div>
+        <button class="btn btn-primary btn-full mt-4" onclick="addWithdrawal()">
+          ⊖ Record Withdrawal
+        </button>
+      </div>
+      <div>
+        <div class="grid g3" style="grid-template-columns:1fr" id="wdCatCards"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="page" id="page-history">
+    <div class="section-header">
+      <div>
+        <div class="section-title">History</div>
+        <div class="section-sub">All transactions, latest first</div>
+      </div>
+      <div class="flex gap-2">
+        <select id="histFilter" onchange="renderHistory()" style="width:auto;padding:8px 14px">
+          <option value="all">All</option>
+          <option value="collection">Collections Only</option>
+          <option value="withdrawal">Withdrawals Only</option>
+          <option value="staff">Staff Events Only</option>
+        </select>
+      </div>
+    </div>
+    <div id="historyList"></div>
+  </div>
+
+  <!-- RULES -->
+  <div class="page" id="page-rules">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Contribution Rules</div>
+        <div class="section-sub">Fixed daily contribution schedule</div>
+      </div>
+    </div>
+    <div class="grid g3 gap-3">
+      <div class="rule-card">
+        <div class="rule-header" style="color:var(--pickup)">
+          <span>🚗</span> Pickup
+        </div>
+        <div class="rule-body">
+          <div class="rule-row"><span class="rule-day">Monday</span><span class="rule-amount text-accent">₹10</span></div>
+          <div class="rule-row"><span class="rule-day">Tuesday</span><span class="rule-amount text-accent">₹10</span></div>
+          <div class="rule-row"><span class="rule-day">Wednesday</span><span class="rule-amount text-accent">₹10</span></div>
+          <div class="rule-row"><span class="rule-day">Thursday</span><span class="rule-amount text-accent">₹10</span></div>
+          <div class="rule-row"><span class="rule-day">Friday</span><span class="rule-amount text-accent">₹10</span></div>
+          <div class="rule-row"><span class="rule-day">Saturday</span><span class="rule-amount text-green">₹20</span></div>
+          <div class="rule-row"><span class="rule-day">Sunday</span><span class="rule-amount text-green">₹20</span></div>
+        </div>
+      </div>
+      <div class="rule-card">
+        <div class="rule-header" style="color:var(--hk)">
+          <span>🧹</span> Housekeeping
+        </div>
+        <div class="rule-body">
+          <div class="rule-row"><span class="rule-day">Monday</span><span class="rule-amount text-muted">₹0</span></div>
+          <div class="rule-row"><span class="rule-day">Tuesday</span><span class="rule-amount text-muted">₹0</span></div>
+          <div class="rule-row"><span class="rule-day">Wednesday</span><span class="rule-amount text-muted">₹0</span></div>
+          <div class="rule-row"><span class="rule-day">Thursday</span><span class="rule-amount text-muted">₹0</span></div>
+          <div class="rule-row"><span class="rule-day">Friday</span><span class="rule-amount text-muted">₹0</span></div>
+          <div class="rule-row"><span class="rule-day">Saturday</span><span class="rule-amount text-green">₹20</span></div>
+          <div class="rule-row"><span class="rule-day">Sunday</span><span class="rule-amount text-green">₹20</span></div>
+        </div>
+      </div>
+      <div class="rule-card">
+        <div class="rule-header" style="color:var(--wp)">
+          <span>🧽</span> Wiping
+        </div>
+        <div class="rule-body">
+          <div class="rule-row"><span class="rule-day">Monday</span><span class="rule-amount text-amber">₹10</span></div>
+          <div class="rule-row"><span class="rule-day">Tuesday</span><span class="rule-amount text-muted">₹0</span></div>
+          <div class="rule-row"><span class="rule-day">Wednesday</span><span class="rule-amount text-muted">₹0</span></div>
+          <div class="rule-row"><span class="rule-day">Thursday</span><span class="rule-amount text-muted">₹0</span></div>
+          <div class="rule-row"><span class="rule-day">Friday</span><span class="rule-amount text-muted">₹0</span></div>
+          <div class="rule-row"><span class="rule-day">Saturday</span><span class="rule-amount text-muted">₹0</span></div>
+          <div class="rule-row"><span class="rule-day">Sunday</span><span class="rule-amount text-muted">₹0</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card mt-6">
+      <div class="card-title">Payment Allocation Priority</div>
+      <div class="flex gap-3" style="flex-wrap:wrap;margin-bottom:16px">
+        <span class="priority-badge"><span class="priority-dot" style="background:var(--wp)"></span> 1st — Wiping</span>
+        <span style="color:var(--text3);align-self:center">→</span>
+        <span class="priority-badge"><span class="priority-dot" style="background:var(--hk)"></span> 2nd — Housekeeping</span>
+        <span style="color:var(--text3);align-self:center">→</span>
+        <span class="priority-badge"><span class="priority-dot" style="background:var(--pickup)"></span> 3rd — Pickup</span>
+      </div>
+      <div class="divider"></div>
+      <div class="card-title">How It Works</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.8">
+        1. When a waiter pays, the system calculates all missed days from their last payment (or join date).<br>
+        2. Any previous pending amounts are carried over.<br>
+        3. Any previous advance is added to the incoming payment.<br>
+        4. Payment is applied in order: Wiping → Housekeeping → Pickup.<br>
+        5. If payment exceeds total dues, the remainder becomes advance (credit for next payment).<br>
+        6. Last paid date is automatically updated to today.
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ADD WAITER MODAL -->
+<div class="modal-overlay" id="addWaiterModal">
+  <div class="modal">
+    <div class="modal-title">Add New Waiter</div>
+    <div class="form-group">
+      <label>Waiter Name</label>
+      <input type="text" id="newWaiterName" placeholder="e.g. Rajesh Kumar"
+        onkeydown="if(event.key==='Enter')saveNewWaiter()" />
+    </div>
+    <div class="info-banner" style="margin-top:12px">
+      <span>ℹ</span> Join date will be set to today automatically.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('addWaiterModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNewWaiter()">Add Waiter</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE WAITER MODAL — 3 steps inside one overlay -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal" style="width:460px">
+
+    <!-- STEP 1: Choose action -->
+    <div id="deleteStep1">
+      <div class="modal-title" style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🗑</span>
+        Remove <span id="deleteWaiterName" style="color:var(--red);margin-left:4px"></span>
+      </div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.6">
+        Choose what to do with this waiter's transaction history.
+      </div>
+
+      <!-- Option A: Keep transactions -->
+      <div id="deleteOptKeep" class="delete-option" onclick="selectDeleteOption('keep')" style="margin-bottom:10px">
+        <div class="delete-opt-radio" id="radioKeep"></div>
+        <div>
+          <div class="delete-opt-title">Keep transaction history</div>
+          <div class="delete-opt-sub">Waiter is removed from active list. Past payments & records stay in History for accounting.</div>
+        </div>
+      </div>
+
+      <!-- Option B: Delete all -->
+      <div id="deleteOptAll" class="delete-option" onclick="selectDeleteOption('all')">
+        <div class="delete-opt-radio" id="radioAll"></div>
+        <div>
+          <div class="delete-opt-title" style="color:var(--red)">Delete waiter + ALL transaction data</div>
+          <div class="delete-opt-sub">Permanently erases every payment record. Requires passcode. Cannot be undone.</div>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-top:20px">
+        <button class="btn btn-ghost" onclick="closeDeleteModal()">Cancel</button>
+        <button class="btn btn-danger" id="deleteStep1Btn" onclick="proceedDeleteStep()" disabled>Continue →</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: Passcode (only for delete-all) -->
+    <div id="deleteStep2" style="display:none">
+      <div class="modal-title" style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🔒</span> Admin Passcode Required
+      </div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.6">
+        Deleting all data for <strong id="deleteWaiterName2" style="color:var(--red)"></strong> is irreversible.
+        Enter the admin passcode to confirm.
+      </div>
+      <div class="form-group">
+        <label>Passcode</label>
+        <div style="position:relative">
+          <input type="password" id="deletePasscode" placeholder="Enter passcode"
+            onkeydown="if(event.key==='Enter')verifyPasscode()"
+            style="padding-right:44px;letter-spacing:4px;font-size:18px" />
+          <button onclick="togglePasscodeVisibility()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px" id="togglePasscodeBtn">👁</button>
+        </div>
+      </div>
+      <div id="passcodeError" style="display:none" class="warn-banner">
+        <span>✕</span> <span id="passcodeErrorMsg">Incorrect passcode.</span>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-top:8px;font-family:'DM Mono',monospace">
+        Change passcode via <span style="color:var(--accent2)">🔑 Change Passcode</span> in the sidebar.
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="backToDeleteStep1()">← Back</button>
+        <button class="btn btn-danger" onclick="verifyPasscode()">🔓 Verify & Delete All</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: Final confirmation (keep) -->
+    <div id="deleteStep3" style="display:none">
+      <div class="modal-title">Confirm Removal</div>
+      <div class="warn-banner" style="margin-bottom:16px">
+        <span>⚠</span>
+        <span><strong id="deleteWaiterName3" style="color:var(--red)"></strong> will be removed from the active waiter list. Their payment history will remain in records.</span>
+      </div>
+      <div style="font-size:13px;color:var(--text2)">This action cannot be undone.</div>
+      <div class="modal-actions" style="margin-top:20px">
+        <button class="btn btn-ghost" onclick="closeDeleteModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="executeDelete(false)">Confirm Remove</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- IMPORT MODAL -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal" style="width:500px">
+    <div class="modal-title">📂 Import CSV Backup</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">
+      Select the <strong>Waiters CSV</strong> and <strong>Transactions CSV</strong> files exported from TipFlow.
+    </div>
+
+    <div class="form-group">
+      <label>Waiters CSV (tipflow-waiters-…csv)</label>
+      <input type="file" id="importWaitersFile" accept=".csv"
+        style="cursor:pointer;padding:10px 14px;font-size:13px" />
+    </div>
+    <div class="form-group">
+      <label>Transactions CSV (tipflow-transactions-…csv)</label>
+      <input type="file" id="importTxnsFile" accept=".csv"
+        style="cursor:pointer;padding:10px 14px;font-size:13px" />
+    </div>
+
+    <!-- Import mode choice -->
+    <div style="margin-bottom:14px">
+      <label style="margin-bottom:10px">Import Mode</label>
+      <div style="display:flex;flex-direction:column;gap:8px">
+
+        <div id="importOptMerge" class="delete-option selected-keep" onclick="selectImportMode('merge')">
+          <div class="delete-opt-radio checked-keep" id="importRadioMerge"></div>
+          <div>
+            <div class="delete-opt-title" style="color:var(--green)">🔀 Merge with existing data</div>
+            <div class="delete-opt-sub">Adds new waiters &amp; transactions from the file. Records already present (same ID) are skipped — nothing is deleted.</div>
+          </div>
+        </div>
+
+        <div id="importOptReplace" class="delete-option" onclick="selectImportMode('replace')">
+          <div class="delete-opt-radio" id="importRadioReplace"></div>
+          <div>
+            <div class="delete-opt-title" style="color:var(--red)">♻ Replace all existing data</div>
+            <div class="delete-opt-sub">Wipes current waiters &amp; transactions completely and loads the file. Use only when restoring a full backup.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="importPreview" style="display:none" class="info-banner">
+      <span>◈</span> <span id="importPreviewText"></span>
+    </div>
+    <div id="importError" style="display:none" class="warn-banner">
+      <span>✕</span> <span id="importErrorText"></span>
+    </div>
+    <div id="importReplaceWarn" style="display:none" class="warn-banner">
+      <span>⚠</span> Replace mode will permanently erase all current data before importing.
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('importModal')">Cancel</button>
+      <button class="btn btn-primary" id="importConfirmBtn" onclick="importCSVBackup()">⬆ Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHANGE PASSCODE MODAL -->
+<div class="modal-overlay" id="changePasscodeModal">
+  <div class="modal" style="width:420px">
+    <div class="modal-title" style="display:flex;align-items:center;gap:10px">
+      <span>🔑</span> Change Admin Passcode
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.6">
+      Used to authorize permanent waiter data deletion. Keep it safe.
+    </div>
+
+    <div class="form-group">
+      <label>Current Passcode</label>
+      <div style="position:relative">
+        <input type="password" id="cpCurrent" placeholder="Enter current passcode"
+          style="padding-right:44px;letter-spacing:3px;font-size:16px"
+          onkeydown="if(event.key==='Enter')document.getElementById('cpNew').focus()" />
+        <button type="button" onclick="toggleVis('cpCurrent','cpCurrentBtn')"
+          style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px"
+          id="cpCurrentBtn">👁</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>New Passcode</label>
+      <div style="position:relative">
+        <input type="password" id="cpNew" placeholder="Min 4 characters"
+          style="padding-right:44px;letter-spacing:3px;font-size:16px"
+          oninput="checkPasscodeStrength()"
+          onkeydown="if(event.key==='Enter')document.getElementById('cpConfirm').focus()" />
+        <button type="button" onclick="toggleVis('cpNew','cpNewBtn')"
+          style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px"
+          id="cpNewBtn">👁</button>
+      </div>
+      <!-- Strength bar -->
+      <div style="margin-top:8px;height:4px;border-radius:2px;background:var(--border);overflow:hidden">
+        <div id="cpStrengthBar" style="height:100%;width:0%;border-radius:2px;transition:all 0.3s"></div>
+      </div>
+      <div id="cpStrengthLabel" style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:4px"></div>
+    </div>
+
+    <div class="form-group">
+      <label>Confirm New Passcode</label>
+      <div style="position:relative">
+        <input type="password" id="cpConfirm" placeholder="Re-enter new passcode"
+          style="padding-right:44px;letter-spacing:3px;font-size:16px"
+          onkeydown="if(event.key==='Enter')saveNewPasscode()" />
+        <button type="button" onclick="toggleVis('cpConfirm','cpConfirmBtn')"
+          style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px"
+          id="cpConfirmBtn">👁</button>
+      </div>
+    </div>
+
+    <div id="cpError" style="display:none" class="warn-banner"><span>✕</span> <span id="cpErrorMsg"></span></div>
+    <div id="cpSuccess" style="display:none" class="info-banner"><span>✓</span> Passcode changed successfully!</div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeChangePasscodeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNewPasscode()">🔒 Update Passcode</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODE PASSCODE MODAL -->
+<div class="modal-overlay" id="modePasscodeModal">
+  <div class="modal" style="width:380px">
+    <div class="modal-title" style="display:flex;align-items:center;gap:10px">
+      <span>🔓</span> Enter Edit Mode
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.6">
+      Enter the admin passcode to unlock Edit Mode and make changes to data.
+    </div>
+    <div class="form-group">
+      <label>Admin Passcode</label>
+      <div style="position:relative">
+        <input type="password" id="modePasscodeInput" placeholder="Enter passcode"
+          onkeydown="if(event.key==='Enter')verifyModePasscode()"
+          style="padding-right:44px;letter-spacing:4px;font-size:18px" />
+        <button type="button" onclick="toggleModePasscodeVis()"
+          style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px"
+          id="modePasscodeVisBtn">👁</button>
+      </div>
+    </div>
+    <div id="modePasscodeError" style="display:none" class="warn-banner">
+      <span>✕</span> <span id="modePasscodeErrorMsg">Incorrect passcode.</span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modePasscodeModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="verifyModePasscode()">🔓 Unlock Edit Mode</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  DATA STORE
+// ═══════════════════════════════════════════════
+let store = {
+  waiters: [],        // { id, name, joinDate, lastPaidDate, paid, pending_pickup, pending_hk, pending_wp, advance }
+  transactions: [],   // { id, type, date, ... }
+  withdrawals: {      // total withdrawn per category
+    pickup: 0,
+    hk: 0,
+    wp: 0
+  },
+  deleted_waiters: [] // archived snapshots of deleted waiters
+};
+
+let deleteTargetId = null;
+
+// ═══════════════════════════════════════════════
+//  PERSISTENCE
+// ═══════════════════════════════════════════════
+function save() {
+  localStorage.setItem('tipflow_data', JSON.stringify(store));
+}
+
+function load() {
+  const raw = localStorage.getItem('tipflow_data');
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      store = { withdrawals: { pickup: 0, hk: 0, wp: 0 }, deleted_waiters: [], ...parsed };
+    } catch (e) {
+      console.error('Load error', e);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  DATE HELPERS
+// ═══════════════════════════════════════════════
+function today() {
+  // Use local date (not UTC) to avoid timezone offset shifting the day
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatDateTime(isoStr) {
+  const d = new Date(isoStr);
+  return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function daysBetween(from, to, includeFrom = false) {
+  // includeFrom=true  → include 'from' date (used when waiter never paid — join date counts)
+  // includeFrom=false → exclude 'from' date (used when lastPaidDate exists — already paid)
+  const result = [];
+  const start = new Date(from + 'T00:00:00');
+  const end   = new Date(to   + 'T00:00:00');
+  let cur = new Date(start);
+  if (!includeFrom) cur.setDate(cur.getDate() + 1);
+  while (cur <= end) {
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, '0');
+    const d = String(cur.getDate()).padStart(2, '0');
+    result.push(`${y}-${m}-${d}`);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+}
+
+function getDayOfWeek(dateStr) {
+  return new Date(dateStr + 'T00:00:00').getDay(); // 0=Sun,1=Mon,...,6=Sat
+}
+
+// ═══════════════════════════════════════════════
+//  CORE RULE: DAILY DUES
+// ═══════════════════════════════════════════════
+function getDailyDues(dateStr) {
+  const dow = getDayOfWeek(dateStr);
+  // 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat
+  const isWeekend = dow === 0 || dow === 6;
+  const isMonday = dow === 1;
+
+  return {
+    pickup: isWeekend ? 20 : 10,
+    hk: isWeekend ? 20 : 0,
+    wp: isMonday ? 10 : 0
+  };
+}
+
+function calculateMultiDayDues(fromDate, toDate, neverPaid = false) {
+  // neverPaid=true  → fromDate is joinDate, include it (waiter owes from day 1)
+  // neverPaid=false → fromDate is lastPaidDate, exclude it (already settled)
+  const dates = daysBetween(fromDate, toDate, neverPaid);
+  let totals = { pickup: 0, hk: 0, wp: 0, days: dates.length };
+  for (const d of dates) {
+    const dues = getDailyDues(d);
+    totals.pickup += dues.pickup;
+    totals.hk     += dues.hk;
+    totals.wp     += dues.wp;
+  }
+  return totals;
+}
+
+// ═══════════════════════════════════════════════
+//  PAYMENT SIMULATION
+// ═══════════════════════════════════════════════
+function simulatePayment(waiter, amount) {
+  const todayStr = today();
+  const neverPaid = !waiter.lastPaidDate;
+  const fromDate = waiter.lastPaidDate || waiter.joinDate;
+
+  // Calculate dues for missed days
+  // neverPaid=true → joinDate itself is included (day 1 counts)
+  // neverPaid=false → lastPaidDate excluded (already settled that day)
+  const newDues = calculateMultiDayDues(fromDate, todayStr, neverPaid);
+
+  // Total pending per category
+  const totalPendingWp = (waiter.pending_wp || 0) + newDues.wp;
+  const totalPendingHk = (waiter.pending_hk || 0) + newDues.hk;
+  const totalPendingPickup = (waiter.pending_pickup || 0) + newDues.pickup;
+  const totalDue = totalPendingWp + totalPendingHk + totalPendingPickup;
+
+  // Add advance to payment
+  const effectivePayment = amount + (waiter.advance || 0);
+
+  // Allocate: Wiping → Housekeeping → Pickup
+  let remaining = effectivePayment;
+
+  let paidWp = 0, paidHk = 0, paidPickup = 0;
+
+  // Wiping
+  paidWp = Math.min(remaining, totalPendingWp);
+  remaining -= paidWp;
+
+  // Housekeeping
+  paidHk = Math.min(remaining, totalPendingHk);
+  remaining -= paidHk;
+
+  // Pickup
+  paidPickup = Math.min(remaining, totalPendingPickup);
+  remaining -= paidPickup;
+
+  // Remaining is advance
+  const newAdvance = remaining;
+
+  const newPendingWp = totalPendingWp - paidWp;
+  const newPendingHk = totalPendingHk - paidHk;
+  const newPendingPickup = totalPendingPickup - paidPickup;
+
+  return {
+    days: newDues.days,
+    fromDate,
+    toDate: todayStr,
+    newDues,
+    totalPendingWp,
+    totalPendingHk,
+    totalPendingPickup,
+    totalDue,
+    advanceUsed: waiter.advance || 0,
+    effectivePayment,
+    paidWp, paidHk, paidPickup,
+    newPendingWp, newPendingHk, newPendingPickup,
+    newAdvance,
+    totalCollected: paidWp + paidHk + paidPickup
+  };
+}
+
+// ═══════════════════════════════════════════════
+//  PAYMENT ACTIONS
+// ═══════════════════════════════════════════════
+function addPayment() {
+  const waiterId = document.getElementById('collWaiter').value;
+  const amount = parseFloat(document.getElementById('collAmount').value) || 0;
+  const note = document.getElementById('collNote').value.trim();
+
+  if (!waiterId) { showToast('Select a waiter', 'error'); return; }
+  if (amount < 0) { showToast('Amount cannot be negative', 'error'); return; }
+
+  const waiter = store.waiters.find(w => w.id === waiterId);
+  if (!waiter) { showToast('Waiter not found', 'error'); return; }
+
+  const sim = simulatePayment(waiter, amount);
+  const todayStr = today();
+
+  // Apply to waiter
+  waiter.paid = (waiter.paid || 0) + amount;
+  waiter.pending_wp = sim.newPendingWp;
+  waiter.pending_hk = sim.newPendingHk;
+  waiter.pending_pickup = sim.newPendingPickup;
+  waiter.advance = sim.newAdvance;
+  waiter.lastPaidDate = todayStr;
+
+  // Record transaction
+  store.transactions.unshift({
+    id: genId(),
+    type: 'collection',
+    date: new Date().toISOString(),
+    waiterId: waiter.id,
+    waiterName: waiter.name,
+    amount,
+    note: note || '',
+    detail: {
+      days: sim.days,
+      newDues: sim.newDues,
+      totalDue: sim.totalDue,
+      advanceUsed: sim.advanceUsed,
+      paidWp: sim.paidWp,
+      paidHk: sim.paidHk,
+      paidPickup: sim.paidPickup,
+      newPendingWp: sim.newPendingWp,
+      newPendingHk: sim.newPendingHk,
+      newPendingPickup: sim.newPendingPickup,
+      newAdvance: sim.newAdvance
+    }
+  });
+
+  save();
+  showToast(`₹${amount} recorded for ${waiter.name} (${sim.days} days)`, 'success');
+
+  // Reset form
+  document.getElementById('collAmount').value = '';
+  document.getElementById('collNote').value = '';
+  updateCollectionPreview();
+  renderAll();
+}
+
+function addWithdrawal() {
+  const cat = document.getElementById('wdCategory').value;
+  const amount = parseFloat(document.getElementById('wdAmount').value) || 0;
+  const note = document.getElementById('wdNote').value.trim();
+
+  if (amount <= 0) { showToast('Enter a valid amount', 'error'); return; }
+
+  const balance = getCategoryBalance(cat);
+  if (amount > balance) {
+    showToast(`Insufficient balance. Available: ₹${balance.toFixed(0)}`, 'error');
+    return;
+  }
+
+  store.withdrawals[cat] = (store.withdrawals[cat] || 0) + amount;
+  store.transactions.unshift({
+    id: genId(),
+    type: 'withdrawal',
+    date: new Date().toISOString(),
+    category: cat,
+    amount,
+    note: note || ''
+  });
+
+  save();
+  const catLabel = { pickup: 'Pickup', hk: 'Housekeeping', wp: 'Wiping' }[cat];
+  showToast(`₹${amount} withdrawn from ${catLabel}`, 'success');
+
+  document.getElementById('wdAmount').value = '';
+  document.getElementById('wdNote').value = '';
+  updateWithdrawalInfo();
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════
+//  BALANCE CALCULATIONS
+// ═══════════════════════════════════════════════
+function getCategoryCollected(cat) {
+  return store.transactions
+    .filter(t => t.type === 'collection')
+    .reduce((sum, t) => {
+      const detail = t.detail || {};
+      if (cat === 'pickup') return sum + (detail.paidPickup || 0);
+      if (cat === 'hk') return sum + (detail.paidHk || 0);
+      if (cat === 'wp') return sum + (detail.paidWp || 0);
+      return sum;
+    }, 0);
+}
+
+function getCategoryWithdrawn(cat) {
+  return store.withdrawals[cat] || 0;
+}
+
+function getCategoryBalance(cat) {
+  return getCategoryCollected(cat) - getCategoryWithdrawn(cat);
+}
+
+function getCategoryPending(cat) {
+  return store.waiters.reduce((sum, w) => {
+    if (cat === 'pickup') return sum + (w.pending_pickup || 0);
+    if (cat === 'hk') return sum + (w.pending_hk || 0);
+    if (cat === 'wp') return sum + (w.pending_wp || 0);
+    return sum;
+  }, 0);
+}
+
+function getTotalPaid() {
+  return store.waiters.reduce((s, w) => s + (w.paid || 0), 0);
+}
+
+function getTotalPending() {
+  return store.waiters.reduce((s, w) =>
+    s + (w.pending_pickup || 0) + (w.pending_hk || 0) + (w.pending_wp || 0), 0);
+}
+
+// ═══════════════════════════════════════════════
+//  WAITER MANAGEMENT
+// ═══════════════════════════════════════════════
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function showAddWaiterModal() {
+  document.getElementById('newWaiterName').value = '';
+  openModal('addWaiterModal');
+  setTimeout(() => document.getElementById('newWaiterName').focus(), 100);
+}
+
+function saveNewWaiter() {
+  const name = document.getElementById('newWaiterName').value.trim();
+  if (!name) { showToast('Enter waiter name', 'error'); return; }
+
+  const todayStr = today();
+  const newWaiter = {
+    id: genId(),
+    name,
+    joinDate: todayStr,
+    lastPaidDate: null,
+    paid: 0,
+    pending_pickup: 0,
+    pending_hk: 0,
+    pending_wp: 0,
+    advance: 0
+  };
+  store.waiters.push(newWaiter);
+
+  // Log staff event
+  store.transactions.unshift({
+    id: genId(),
+    type: 'waiter_added',
+    date: new Date().toISOString(),
+    waiterId: newWaiter.id,
+    waiterName: name,
+    joinDate: todayStr
+  });
+
+  save();
+  closeModal('addWaiterModal');
+  showToast(`${name} added successfully`, 'success');
+  renderAll();
+}
+
+// ─── DELETE WAITER — multi-step ───
+// Passcode is stored in localStorage so manager can change it in-app
+function getPasscode() {
+  return localStorage.getItem('tipflow_passcode') || '1234';
+}
+let deleteMode = null; // 'keep' | 'all'
+
+function deleteWaiter(id) {
+  const w = store.waiters.find(w => w.id === id);
+  if (!w) return;
+  deleteTargetId = id;
+  deleteMode = null;
+
+  // Populate name spans
+  document.getElementById('deleteWaiterName').textContent = w.name;
+  document.getElementById('deleteWaiterName2').textContent = w.name;
+  document.getElementById('deleteWaiterName3').textContent = w.name;
+
+  // Reset state
+  resetDeleteModal();
+  openModal('deleteModal');
+}
+
+function resetDeleteModal() {
+  deleteMode = null;
+  // Show step 1, hide others
+  document.getElementById('deleteStep1').style.display = '';
+  document.getElementById('deleteStep2').style.display = 'none';
+  document.getElementById('deleteStep3').style.display = 'none';
+  // Unselect options
+  document.getElementById('deleteOptKeep').className = 'delete-option';
+  document.getElementById('deleteOptAll').className = 'delete-option';
+  document.getElementById('radioKeep').className = 'delete-opt-radio';
+  document.getElementById('radioAll').className = 'delete-opt-radio';
+  document.getElementById('deleteStep1Btn').disabled = true;
+  // Reset passcode
+  document.getElementById('deletePasscode').value = '';
+  document.getElementById('passcodeError').style.display = 'none';
+  document.getElementById('deletePasscode').type = 'password';
+  document.getElementById('togglePasscodeBtn').textContent = '👁';
+}
+
+function selectDeleteOption(mode) {
+  deleteMode = mode;
+  if (mode === 'keep') {
+    document.getElementById('deleteOptKeep').className = 'delete-option selected-keep';
+    document.getElementById('deleteOptAll').className = 'delete-option';
+    document.getElementById('radioKeep').className = 'delete-opt-radio checked-keep';
+    document.getElementById('radioAll').className = 'delete-opt-radio';
+  } else {
+    document.getElementById('deleteOptAll').className = 'delete-option selected-all';
+    document.getElementById('deleteOptKeep').className = 'delete-option';
+    document.getElementById('radioAll').className = 'delete-opt-radio checked-all';
+    document.getElementById('radioKeep').className = 'delete-opt-radio';
+  }
+  document.getElementById('deleteStep1Btn').disabled = false;
+}
+
+function proceedDeleteStep() {
+  if (!deleteMode) return;
+  document.getElementById('deleteStep1').style.display = 'none';
+  if (deleteMode === 'all') {
+    // Show passcode step
+    document.getElementById('deleteStep2').style.display = '';
+    setTimeout(() => document.getElementById('deletePasscode').focus(), 100);
+  } else {
+    // Show keep confirmation step
+    document.getElementById('deleteStep3').style.display = '';
+  }
+}
+
+function backToDeleteStep1() {
+  document.getElementById('deleteStep2').style.display = 'none';
+  document.getElementById('deleteStep3').style.display = 'none';
+  document.getElementById('deleteStep1').style.display = '';
+  document.getElementById('deletePasscode').value = '';
+  document.getElementById('passcodeError').style.display = 'none';
+}
+
+function verifyPasscode() {
+  const entered = document.getElementById('deletePasscode').value;
+  const errEl = document.getElementById('passcodeError');
+  const errMsg = document.getElementById('passcodeErrorMsg');
+
+  if (entered === getPasscode()) {
+    errEl.style.display = 'none';
+    executeDelete(true);
+  } else {
+    errMsg.textContent = entered.length === 0 ? 'Passcode cannot be empty.' : 'Incorrect passcode. Try again.';
+    errEl.style.display = 'flex';
+    document.getElementById('deletePasscode').value = '';
+    document.getElementById('deletePasscode').focus();
+  }
+}
+
+function togglePasscodeVisibility() {
+  const inp = document.getElementById('deletePasscode');
+  const btn = document.getElementById('togglePasscodeBtn');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    btn.textContent = '👁';
+  }
+}
+
+function executeDelete(deleteTransactions) {
+  const w = store.waiters.find(w => w.id === deleteTargetId);
+  const name = w ? w.name : 'Waiter';
+
+  // Snapshot the full waiter before removal
+  const snapshot = w ? { ...w } : null;
+
+  // Collect all their transactions for the archive
+  const waiterTxns = store.transactions.filter(t => t.waiterId === deleteTargetId);
+
+  // Archive the deleted waiter with full details
+  if (snapshot) {
+    store.deleted_waiters = store.deleted_waiters || [];
+    store.deleted_waiters.unshift({
+      ...snapshot,
+      deletedAt: new Date().toISOString(),
+      deleteType: deleteTransactions ? 'full' : 'keep',
+      archivedTransactions: deleteTransactions ? waiterTxns : [] // only store txns if they're being erased
+    });
+  }
+
+  // Always remove from active waiter list
+  store.waiters = store.waiters.filter(w => w.id !== deleteTargetId);
+
+  if (deleteTransactions) {
+    // Hard delete: remove all transactions too
+    store.transactions = store.transactions.filter(t => t.waiterId !== deleteTargetId);
+  } else {
+    // Soft delete: keep transactions, mark waiterName
+    store.transactions = store.transactions.map(t => {
+      if (t.waiterId === deleteTargetId) {
+        return { ...t, waiterName: `[Removed] ${t.waiterName}`, waiterId: null };
+      }
+      return t;
+    });
+  }
+
+  // Log the deletion event
+  store.transactions.unshift({
+    id: genId(),
+    type: 'waiter_deleted',
+    date: new Date().toISOString(),
+    waiterId: deleteTargetId,
+    waiterName: name,
+    deleteType: deleteTransactions ? 'full' : 'keep',
+    snapshot: snapshot   // full waiter details stored in the log
+  });
+
+  save();
+  closeDeleteModal();
+  showToast(
+    deleteTransactions
+      ? `${name} and all transaction data deleted`
+      : `${name} removed. Transaction history kept.`,
+    'warning'
+  );
+
+  renderAll();
+  deleteTargetId = null;
+  deleteMode = null;
+}
+
+function closeDeleteModal() {
+  closeModal('deleteModal');
+  setTimeout(resetDeleteModal, 300);
+}
+
+// ═══════════════════════════════════════════════
+//  RENDER FUNCTIONS
+// ═══════════════════════════════════════════════
+function renderAll() {
+  renderDashboard();
+  renderWaiters();
+  renderCollectionWaiters();
+  renderWithdrawal();
+  renderHistory();
+  // Re-apply mode UI after every render (dynamic elements like delete buttons)
+  if (typeof applyModeUI === 'function') applyModeUI();
+}
+
+function renderDashboard() {
+  const totalPaid = getTotalPaid();
+  const totalPending = getTotalPending();
+  const totalBalance = getCategoryBalance('pickup') + getCategoryBalance('hk') + getCategoryBalance('wp');
+  const totalWithdrawn = getCategoryWithdrawn('pickup') + getCategoryWithdrawn('hk') + getCategoryWithdrawn('wp');
+
+  document.getElementById('dashStats').innerHTML = `
+    <div class="stat-card" style="--accent-color:var(--green)">
+      <div class="stat-label">Total Collected</div>
+      <div class="stat-value">₹${totalPaid.toLocaleString('en-IN')}</div>
+      <div class="stat-sub">${store.transactions.filter(t=>t.type==='collection').length} payments</div>
+      <div class="stat-icon">◈</div>
+    </div>
+    <div class="stat-card" style="--accent-color:var(--amber)">
+      <div class="stat-label">Total Pending</div>
+      <div class="stat-value">₹${totalPending.toLocaleString('en-IN')}</div>
+      <div class="stat-sub">across all waiters</div>
+      <div class="stat-icon">◎</div>
+    </div>
+    <div class="stat-card" style="--accent-color:var(--accent)">
+      <div class="stat-label">Current Balance</div>
+      <div class="stat-value">₹${totalBalance.toLocaleString('en-IN')}</div>
+      <div class="stat-sub">available to withdraw</div>
+      <div class="stat-icon">⬡</div>
+    </div>
+    <div class="stat-card" style="--accent-color:var(--red)">
+      <div class="stat-label">Total Withdrawn</div>
+      <div class="stat-value">₹${totalWithdrawn.toLocaleString('en-IN')}</div>
+      <div class="stat-sub">${store.transactions.filter(t=>t.type==='withdrawal').length} withdrawals</div>
+      <div class="stat-icon">⊖</div>
+    </div>
+  `;
+
+  const cats = [
+    { key: 'pickup', label: 'Pickup', icon: '🚗', color: 'var(--pickup)', bg: 'var(--pickup-dim)' },
+    { key: 'hk', label: 'Housekeeping', icon: '🧹', color: 'var(--hk)', bg: 'var(--hk-dim)' },
+    { key: 'wp', label: 'Wiping', icon: '🧽', color: 'var(--wp)', bg: 'var(--wp-dim)' }
+  ];
+
+  document.getElementById('dashCats').innerHTML = cats.map(c => {
+    const collected = getCategoryCollected(c.key);
+    const withdrawn = getCategoryWithdrawn(c.key);
+    const balance = getCategoryBalance(c.key);
+    const pending = getCategoryPending(c.key);
+    return `
+      <div class="cat-card">
+        <div class="cat-header">
+          <div class="cat-name" style="color:${c.color}">${c.icon} ${c.label}</div>
+          <div class="cat-badge" style="background:${c.bg};color:${c.color}">ACTIVE</div>
+        </div>
+        <div class="cat-rows">
+          <div class="cat-row">
+            <span class="cat-row-label">Collected</span>
+            <span class="cat-row-val text-green">₹${collected.toLocaleString('en-IN')}</span>
+          </div>
+          <div class="cat-row">
+            <span class="cat-row-label">Withdrawn</span>
+            <span class="cat-row-val text-red">₹${withdrawn.toLocaleString('en-IN')}</span>
+          </div>
+          <div class="cat-row">
+            <span class="cat-row-label">Pending (owed)</span>
+            <span class="cat-row-val text-amber">₹${pending.toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+        <div class="cat-balance">
+          <span>Balance</span>
+          <span style="color:${c.color}">₹${balance.toLocaleString('en-IN')}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Waiter summary table
+  const sorted = [...store.waiters].sort((a, b) => {
+    const pa = (a.pending_pickup||0)+(a.pending_hk||0)+(a.pending_wp||0);
+    const pb = (b.pending_pickup||0)+(b.pending_hk||0)+(b.pending_wp||0);
+    return pb - pa;
+  });
+
+  let defaulters = 0;
+  const rows = sorted.map(w => {
+    const pending = (w.pending_pickup||0)+(w.pending_hk||0)+(w.pending_wp||0);
+    const isDefaulter = pending > 100;
+    if (isDefaulter) defaulters++;
+    const statusBadge = isDefaulter
+      ? `<span class="badge badge-red">High Pending</span>`
+      : w.advance > 0
+        ? `<span class="badge badge-green">In Advance</span>`
+        : `<span class="badge badge-blue">Clear</span>`;
+
+    return `<tr class="waiter-row">
+      <td>${w.name}</td>
+      <td class="mono">${formatDate(w.joinDate)}</td>
+      <td class="mono">${w.lastPaidDate ? formatDate(w.lastPaidDate) : '<span class="badge badge-red">Never</span>'}</td>
+      <td class="mono text-green">₹${(w.paid||0).toLocaleString('en-IN')}</td>
+      <td class="mono ${isDefaulter ? 'defaulter' : ''}">₹${pending.toLocaleString('en-IN')}</td>
+      <td class="mono ${w.advance > 0 ? 'advance-val' : ''}">₹${(w.advance||0).toLocaleString('en-IN')}</td>
+      <td>${statusBadge}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('dashWaiterBody').innerHTML = rows || `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:32px">No waiters added yet</td></tr>`;
+  document.getElementById('defaulterCount').textContent = `${defaulters} defaulter${defaulters !== 1 ? 's' : ''}`;
+}
+
+function renderWaiters() {
+  const body = document.getElementById('waiterTableBody');
+  if (!store.waiters.length) {
+    body.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">◉</div><div class="empty-text">No waiters yet. Add one to get started.</div></div></td></tr>`;
+    return;
+  }
+  body.innerHTML = store.waiters.map((w, i) => {
+    const pending = (w.pending_pickup||0)+(w.pending_hk||0)+(w.pending_wp||0);
+    const isDefaulter = pending > 100;
+    return `<tr class="waiter-row">
+      <td class="mono text-muted">${i + 1}</td>
+      <td>${w.name}</td>
+      <td class="mono">${formatDate(w.joinDate)}</td>
+      <td class="mono">${w.lastPaidDate ? formatDate(w.lastPaidDate) : '<span class="badge badge-red">Never</span>'}</td>
+      <td class="mono text-green">₹${(w.paid||0).toLocaleString('en-IN')}</td>
+      <td class="mono ${isDefaulter ? 'text-red' : ''}">₹${(w.pending_pickup||0).toLocaleString('en-IN')}</td>
+      <td class="mono ${isDefaulter ? 'text-red' : ''}">₹${(w.pending_hk||0).toLocaleString('en-IN')}</td>
+      <td class="mono ${isDefaulter ? 'text-red' : ''}">₹${(w.pending_wp||0).toLocaleString('en-IN')}</td>
+      <td class="mono ${w.advance > 0 ? 'text-green' : ''}">₹${(w.advance||0).toLocaleString('en-IN')}</td>
+      <td>
+        <button class="btn btn-danger btn-sm" onclick="deleteWaiter('${w.id}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderCollectionWaiters() {
+  const sel = document.getElementById('collWaiter');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— choose waiter —</option>';
+  store.waiters.forEach(w => {
+    const o = document.createElement('option');
+    o.value = w.id;
+    o.textContent = w.name;
+    sel.appendChild(o);
+  });
+  sel.value = prev;
+}
+
+function updateCollectionPreview() {
+  const waiterId = document.getElementById('collWaiter').value;
+  const amount = parseFloat(document.getElementById('collAmount').value) || 0;
+  const preview = document.getElementById('collPreview');
+
+  if (!waiterId) {
+    preview.innerHTML = `<div class="card" style="height:100%;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:14px;text-align:center;flex-direction:column;gap:12px"><div style="font-size:32px">◎</div>Select a waiter and enter amount to see preview</div>`;
+    return;
+  }
+
+  const waiter = store.waiters.find(w => w.id === waiterId);
+  if (!waiter) return;
+
+  const sim = simulatePayment(waiter, amount);
+
+  const noPayment = amount === 0;
+
+  preview.innerHTML = `
+    <div class="card">
+      <div class="info-banner">
+        <span>◈</span>
+        <span>Auto-calculated for <strong>${sim.days} day${sim.days !== 1 ? 's' : ''}</strong> 
+        (${formatDate(sim.fromDate)} → ${formatDate(sim.toDate)})</span>
+      </div>
+
+      <div class="preview-title">New Dues This Period</div>
+      <div class="preview-row">
+        <span class="preview-row-label">Wiping</span>
+        <span class="preview-row-val wp-color">₹${sim.newDues.wp}</span>
+      </div>
+      <div class="preview-row">
+        <span class="preview-row-label">Housekeeping</span>
+        <span class="preview-row-val hk-color">₹${sim.newDues.hk}</span>
+      </div>
+      <div class="preview-row">
+        <span class="preview-row-label">Pickup</span>
+        <span class="preview-row-val pickup-color">₹${sim.newDues.pickup}</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="preview-title">Total Due (inc. pending)</div>
+      <div class="preview-row">
+        <span class="preview-row-label">Pending Wiping</span>
+        <span class="preview-row-val">₹${sim.totalPendingWp}</span>
+      </div>
+      <div class="preview-row">
+        <span class="preview-row-label">Pending Housekeeping</span>
+        <span class="preview-row-val">₹${sim.totalPendingHk}</span>
+      </div>
+      <div class="preview-row">
+        <span class="preview-row-label">Pending Pickup</span>
+        <span class="preview-row-val">₹${sim.totalPendingPickup}</span>
+      </div>
+      <div class="preview-row" style="font-weight:600">
+        <span class="preview-row-label text-amber">Total Due</span>
+        <span class="preview-row-val text-amber">₹${sim.totalDue}</span>
+      </div>
+
+      ${sim.advanceUsed > 0 ? `
+      <div class="preview-row">
+        <span class="preview-row-label text-green">Advance Credit</span>
+        <span class="preview-row-val text-green">+₹${sim.advanceUsed}</span>
+      </div>
+      ` : ''}
+
+      <div class="divider"></div>
+
+      <div class="preview-title">After Payment (₹${amount})</div>
+      ${noPayment ? `<div style="color:var(--text3);font-size:13px;padding:8px 0">Enter payment amount to see allocation.</div>` : `
+      <div class="preview-row">
+        <span class="preview-row-label">→ Wiping paid</span>
+        <span class="preview-row-val wp-color">₹${sim.paidWp}</span>
+      </div>
+      <div class="preview-row">
+        <span class="preview-row-label">→ Housekeeping paid</span>
+        <span class="preview-row-val hk-color">₹${sim.paidHk}</span>
+      </div>
+      <div class="preview-row">
+        <span class="preview-row-label">→ Pickup paid</span>
+        <span class="preview-row-val pickup-color">₹${sim.paidPickup}</span>
+      </div>
+      <div class="preview-row">
+        <span class="preview-row-label">Remaining Wiping</span>
+        <span class="preview-row-val ${sim.newPendingWp > 0 ? 'text-red' : 'text-green'}">₹${sim.newPendingWp}</span>
+      </div>
+      <div class="preview-row">
+        <span class="preview-row-label">Remaining Housekeeping</span>
+        <span class="preview-row-val ${sim.newPendingHk > 0 ? 'text-red' : 'text-green'}">₹${sim.newPendingHk}</span>
+      </div>
+      <div class="preview-row">
+        <span class="preview-row-label">Remaining Pickup</span>
+        <span class="preview-row-val ${sim.newPendingPickup > 0 ? 'text-red' : 'text-green'}">₹${sim.newPendingPickup}</span>
+      </div>
+      <div class="preview-highlight">
+        <span style="font-size:13px">Advance after payment</span>
+        <span class="font-syne text-green" style="font-size:17px">₹${sim.newAdvance}</span>
+      </div>
+      `}
+    </div>
+  `;
+}
+
+function renderWithdrawal() {
+  updateWithdrawalInfo();
+  const cats = [
+    { key: 'pickup', label: 'Pickup', icon: '🚗', color: 'var(--pickup)', bg: 'var(--pickup-dim)' },
+    { key: 'hk', label: 'Housekeeping', icon: '🧹', color: 'var(--hk)', bg: 'var(--hk-dim)' },
+    { key: 'wp', label: 'Wiping', icon: '🧽', color: 'var(--wp)', bg: 'var(--wp-dim)' }
+  ];
+  document.getElementById('wdCatCards').innerHTML = cats.map(c => {
+    const bal = getCategoryBalance(c.key);
+    const col = getCategoryCollected(c.key);
+    const wd = getCategoryWithdrawn(c.key);
+    return `
+      <div class="cat-card">
+        <div class="cat-header">
+          <div class="cat-name" style="color:${c.color}">${c.icon} ${c.label}</div>
+        </div>
+        <div class="cat-rows">
+          <div class="cat-row">
+            <span class="cat-row-label">Collected</span>
+            <span class="cat-row-val text-green">₹${col.toLocaleString('en-IN')}</span>
+          </div>
+          <div class="cat-row">
+            <span class="cat-row-label">Withdrawn</span>
+            <span class="cat-row-val text-red">₹${wd.toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+        <div class="cat-balance">
+          <span>Balance</span>
+          <span style="color:${c.color}">₹${bal.toLocaleString('en-IN')}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function updateWithdrawalInfo() {
+  const cat = document.getElementById('wdCategory').value;
+  const amount = parseFloat(document.getElementById('wdAmount').value) || 0;
+  const balance = getCategoryBalance(cat);
+  const el = document.getElementById('wdBalanceInfo');
+  const catLabel = { pickup: 'Pickup', hk: 'Housekeeping', wp: 'Wiping' }[cat];
+
+  if (amount > 0 && amount > balance) {
+    el.className = 'warn-banner';
+    document.getElementById('wdBalText').textContent = `Insufficient! ${catLabel} balance: ₹${balance.toLocaleString('en-IN')}`;
+  } else {
+    el.className = 'info-banner';
+    document.getElementById('wdBalText').textContent = `${catLabel} available balance: ₹${balance.toLocaleString('en-IN')}`;
+  }
+}
+
+function renderHistory() {
+  const filter = document.getElementById('histFilter').value;
+  let txns = [...store.transactions];
+
+  if (filter === 'collection') txns = txns.filter(t => t.type === 'collection');
+  else if (filter === 'withdrawal') txns = txns.filter(t => t.type === 'withdrawal');
+  else if (filter === 'staff') txns = txns.filter(t => t.type === 'waiter_added' || t.type === 'waiter_deleted');
+
+  const list = document.getElementById('historyList');
+  if (!txns.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">⊟</div><div class="empty-text">No records found.</div></div>`;
+    return;
+  }
+
+  list.innerHTML = txns.map(t => {
+    // ── Collection ──
+    if (t.type === 'collection') {
+      const d = t.detail || {};
+      return `
+        <div class="history-item">
+          <div class="history-info">
+            <div class="history-title">💰 ${t.waiterName}</div>
+            <div class="history-meta">${formatDateTime(t.date)} • ${d.days || 0} day(s) covered${t.note ? ' • ' + t.note : ''}</div>
+            <div class="history-meta" style="margin-top:6px;display:flex;gap:12px;flex-wrap:wrap">
+              <span class="wp-color">WP: ₹${d.paidWp||0}</span>
+              <span class="hk-color">HK: ₹${d.paidHk||0}</span>
+              <span class="pickup-color">PU: ₹${d.paidPickup||0}</span>
+              ${d.newAdvance > 0 ? `<span class="text-green">Advance: ₹${d.newAdvance}</span>` : ''}
+            </div>
+          </div>
+          <div class="history-amount text-green">+₹${t.amount.toLocaleString('en-IN')}</div>
+        </div>`;
+    }
+
+    // ── Withdrawal ──
+    if (t.type === 'withdrawal') {
+      const catLabel = { pickup: '🚗 Pickup', hk: '🧹 Housekeeping', wp: '🧽 Wiping' }[t.category] || t.category;
+      return `
+        <div class="history-item">
+          <div class="history-info">
+            <div class="history-title">${catLabel} Withdrawal</div>
+            <div class="history-meta">${formatDateTime(t.date)}${t.note ? ' • ' + t.note : ''}</div>
+          </div>
+          <div class="history-amount text-red">-₹${t.amount.toLocaleString('en-IN')}</div>
+        </div>`;
+    }
+
+    // ── Waiter Added ──
+    if (t.type === 'waiter_added') {
+      return `
+        <div class="history-item" style="border-left:3px solid var(--green)">
+          <div class="history-info">
+            <div class="history-title" style="color:var(--green)">👤 Waiter Added — ${t.waiterName}</div>
+            <div class="history-meta">${formatDateTime(t.date)} • Join date: ${formatDate(t.joinDate)}</div>
+          </div>
+          <div><span class="badge badge-green">ADDED</span></div>
+        </div>`;
+    }
+
+    // ── Waiter Deleted ──
+    if (t.type === 'waiter_deleted') {
+      const s = t.snapshot || {};
+      const totalPending = (s.pending_pickup||0) + (s.pending_hk||0) + (s.pending_wp||0);
+      const isFullDelete = t.deleteType === 'full';
+      const uid = 'del_' + t.id;
+      return `
+        <div class="history-item" style="border-left:3px solid var(--red);flex-direction:column;align-items:stretch;gap:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <div class="history-info">
+              <div class="history-title" style="color:var(--red)">🗑 Waiter Deleted — ${t.waiterName}</div>
+              <div class="history-meta">
+                ${formatDateTime(t.date)} •
+                ${isFullDelete
+                  ? '<span style="color:var(--red)">All data erased (passcode verified)</span>'
+                  : '<span style="color:var(--amber)">Transaction history kept</span>'}
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+              <span class="badge badge-red">DELETED</span>
+              <button class="btn btn-ghost btn-sm"
+                onclick="toggleDeletedDetails('${uid}')">View Details</button>
+            </div>
+          </div>
+          <div id="${uid}" style="display:none">
+            <div style="background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-top:4px">
+              <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">Deleted Waiter — Full Record</div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
+                ${detailBox('Name', s.name || '—')}
+                ${detailBox('Join Date', formatDate(s.joinDate))}
+                ${detailBox('Last Paid', s.lastPaidDate ? formatDate(s.lastPaidDate) : 'Never')}
+                ${detailBox('Total Paid', '₹' + (s.paid||0).toLocaleString('en-IN'), 'text-green')}
+                ${detailBox('Pending Pickup', '₹' + (s.pending_pickup||0).toLocaleString('en-IN'), totalPending > 0 ? 'text-red' : '')}
+                ${detailBox('Pending HK', '₹' + (s.pending_hk||0).toLocaleString('en-IN'), totalPending > 0 ? 'text-red' : '')}
+                ${detailBox('Pending Wiping', '₹' + (s.pending_wp||0).toLocaleString('en-IN'), totalPending > 0 ? 'text-red' : '')}
+                ${detailBox('Advance', '₹' + (s.advance||0).toLocaleString('en-IN'), s.advance > 0 ? 'text-green' : '')}
+                ${detailBox('Total Pending', '₹' + totalPending.toLocaleString('en-IN'), totalPending > 0 ? 'text-red' : 'text-green')}
+              </div>
+              ${isFullDelete ? `<div class="warn-banner" style="margin-top:12px;margin-bottom:0"><span>⚠</span> All payment transactions for this waiter were permanently erased.</div>` : ''}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    return '';
+  }).join('');
+}
+
+function detailBox(label, value, colorClass = '') {
+  return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">
+    <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px">${label}</div>
+    <div class="font-mono ${colorClass}" style="font-size:14px;font-weight:600">${value}</div>
+  </div>`;
+}
+
+function toggleDeletedDetails(uid) {
+  const el = document.getElementById(uid);
+  if (!el) return;
+  const btn = el.previousElementSibling.querySelector('button');
+  if (el.style.display === 'none') {
+    el.style.display = '';
+    if (btn) btn.textContent = 'Hide Details';
+  } else {
+    el.style.display = 'none';
+    if (btn) btn.textContent = 'View Details';
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════════════
+function addQuickAmount(n) {
+  const el = document.getElementById('collAmount');
+  el.value = (parseFloat(el.value) || 0) + n;
+  updateCollectionPreview();
+}
+
+function setWdAmount(n) {
+  document.getElementById('wdAmount').value = n;
+  updateWithdrawalInfo();
+}
+
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+
+  const labels = {
+    dashboard: 'Dashboard', waiters: 'Waiters', collection: 'Collection',
+    withdrawal: 'Withdrawal', history: 'History', rules: 'Rules'
+  };
+  document.getElementById('topbarTitle').textContent = labels[page] || page;
+
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.textContent.trim().toLowerCase().includes(page)) n.classList.add('active');
+  });
+
+  closeSidebar();
+
+  if (page === 'collection') { renderCollectionWaiters(); updateCollectionPreview(); }
+  if (page === 'withdrawal') renderWithdrawal();
+  if (page === 'history') renderHistory();
+  if (page === 'dashboard') renderDashboard();
+  if (page === 'waiters') renderWaiters();
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function showToast(msg, type = 'info') {
+  const icons = { success: '✓', error: '✕', info: 'ℹ', warning: '⚠' };
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = 'toastOut 0.3s ease forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('overlayBg').classList.toggle('open');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlayBg').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════
+//  CSV BACKUP — EXPORT
+// ═══════════════════════════════════════════════
+
+// Escape a cell value for CSV (wrap in quotes if it contains comma/quote/newline)
+function csvCell(val) {
+  const s = val == null ? '' : String(val);
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function csvRow(arr) {
+  return arr.map(csvCell).join(',');
+}
+
+function downloadCSV(filename, rows) {
+  const content = rows.join('\r\n');
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportCSVBackup() {
+  const dateStr = today();
+
+  // ── 1. WAITERS CSV ──
+  const waiterHeaders = ['id','name','joinDate','lastPaidDate','paid',
+    'pending_pickup','pending_hk','pending_wp','advance'];
+  const waiterRows = [csvRow(waiterHeaders),
+    ...store.waiters.map(w => csvRow(waiterHeaders.map(h => w[h] ?? '')))
+  ];
+  downloadCSV(`tipflow-waiters-${dateStr}.csv`, waiterRows);
+
+  // ── 2. TRANSACTIONS CSV ──
+  // Flatten nested detail object into top-level columns
+  const txnHeaders = ['id','type','date','waiterId','waiterName','amount','note',
+    'category','joinDate','deleteType','waiterSnapshot',
+    'detail_days','detail_paidWp','detail_paidHk','detail_paidPickup',
+    'detail_newPendingWp','detail_newPendingHk','detail_newPendingPickup',
+    'detail_newAdvance','detail_totalDue','detail_advanceUsed'];
+
+  const txnRows = [csvRow(txnHeaders),
+    ...store.transactions.map(t => {
+      const d = t.detail || {};
+      const snap = t.snapshot ? JSON.stringify(t.snapshot) : '';
+      return csvRow([
+        t.id, t.type, t.date,
+        t.waiterId || '', t.waiterName || '',
+        t.amount != null ? t.amount : '',
+        t.note || '', t.category || '',
+        t.joinDate || '', t.deleteType || '', snap,
+        d.days ?? '', d.paidWp ?? '', d.paidHk ?? '', d.paidPickup ?? '',
+        d.newPendingWp ?? '', d.newPendingHk ?? '', d.newPendingPickup ?? '',
+        d.newAdvance ?? '', d.totalDue ?? '', d.advanceUsed ?? ''
+      ]);
+    })
+  ];
+
+  setTimeout(() => {
+    downloadCSV(`tipflow-transactions-${dateStr}.csv`, txnRows);
+  }, 300); // slight delay so browser doesn't block two downloads
+
+  // ── 3. WITHDRAWALS CSV (summary) ──
+  const wdRows = [
+    csvRow(['category','withdrawn']),
+    csvRow(['pickup', store.withdrawals.pickup || 0]),
+    csvRow(['hk',     store.withdrawals.hk     || 0]),
+    csvRow(['wp',     store.withdrawals.wp      || 0]),
+  ];
+
+  setTimeout(() => {
+    downloadCSV(`tipflow-withdrawals-${dateStr}.csv`, wdRows);
+  }, 600);
+
+  showToast('3 CSV files exported (Waiters, Transactions, Withdrawals)', 'success');
+}
+
+// ═══════════════════════════════════════════════
+//  CSV BACKUP — IMPORT
+// ═══════════════════════════════════════════════
+let importMode = 'merge'; // 'merge' | 'replace'
+
+function showImportModal() {
+  document.getElementById('importWaitersFile').value = '';
+  document.getElementById('importTxnsFile').value = '';
+  document.getElementById('importPreview').style.display = 'none';
+  document.getElementById('importError').style.display = 'none';
+  document.getElementById('importReplaceWarn').style.display = 'none';
+  selectImportMode('merge'); // default to safe option
+  openModal('importModal');
+}
+
+function selectImportMode(mode) {
+  importMode = mode;
+  const replaceWarn = document.getElementById('importReplaceWarn');
+  const btn = document.getElementById('importConfirmBtn');
+
+  if (mode === 'merge') {
+    document.getElementById('importOptMerge').className   = 'delete-option selected-keep';
+    document.getElementById('importOptReplace').className = 'delete-option';
+    document.getElementById('importRadioMerge').className   = 'delete-opt-radio checked-keep';
+    document.getElementById('importRadioReplace').className = 'delete-opt-radio';
+    replaceWarn.style.display = 'none';
+    btn.className = 'btn btn-primary';
+    btn.textContent = '🔀 Merge Import';
+  } else {
+    document.getElementById('importOptReplace').className = 'delete-option selected-all';
+    document.getElementById('importOptMerge').className   = 'delete-option';
+    document.getElementById('importRadioReplace').className = 'delete-opt-radio checked-all';
+    document.getElementById('importRadioMerge').className   = 'delete-opt-radio';
+    replaceWarn.style.display = 'flex';
+    btn.className = 'btn btn-danger';
+    btn.textContent = '♻ Replace & Import';
+  }
+}
+
+// Parse a CSV string into array of objects using header row
+function parseCSV(text) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headers = splitCSVLine(lines[0]);
+  return lines.slice(1).map(line => {
+    const vals = splitCSVLine(line);
+    const obj = {};
+    headers.forEach((h, i) => { obj[h.trim()] = (vals[i] || '').trim(); });
+    return obj;
+  });
+}
+
+// Handles quoted fields (fields containing commas/newlines)
+function splitCSVLine(line) {
+  const result = [];
+  let cur = '', inQuote = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuote && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQuote = !inQuote;
+    } else if (ch === ',' && !inQuote) {
+      result.push(cur); cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  result.push(cur);
+  return result;
+}
+
+function num(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+function orNull(v) { return v === '' ? null : v; }
+
+// Convert raw CSV waiter row → waiter object
+function buildWaiter(r) {
+  return {
+    id:             r.id,
+    name:           r.name,
+    joinDate:       r.joinDate,
+    lastPaidDate:   orNull(r.lastPaidDate),
+    paid:           num(r.paid),
+    pending_pickup: num(r.pending_pickup),
+    pending_hk:     num(r.pending_hk),
+    pending_wp:     num(r.pending_wp),
+    advance:        num(r.advance)
+  };
+}
+
+// Convert raw CSV transaction row → transaction object
+function buildTransaction(r) {
+  const base = {
+    id:         r.id,
+    type:       r.type,
+    date:       r.date,
+    waiterId:   orNull(r.waiterId),
+    waiterName: r.waiterName || '',
+    note:       r.note || '',
+  };
+  if (r.amount !== '')  base.amount     = num(r.amount);
+  if (r.category)       base.category   = r.category;
+  if (r.joinDate)       base.joinDate   = r.joinDate;
+  if (r.deleteType)     base.deleteType = r.deleteType;
+  if (r.waiterSnapshot) {
+    try { base.snapshot = JSON.parse(r.waiterSnapshot); } catch(e) {}
+  }
+  if (r.type === 'collection') {
+    base.detail = {
+      days:             num(r.detail_days),
+      paidWp:           num(r.detail_paidWp),
+      paidHk:           num(r.detail_paidHk),
+      paidPickup:       num(r.detail_paidPickup),
+      newPendingWp:     num(r.detail_newPendingWp),
+      newPendingHk:     num(r.detail_newPendingHk),
+      newPendingPickup: num(r.detail_newPendingPickup),
+      newAdvance:       num(r.detail_newAdvance),
+      totalDue:         num(r.detail_totalDue),
+      advanceUsed:      num(r.detail_advanceUsed),
+    };
+  }
+  return base;
+}
+
+// Recalculate withdrawals totals from a transaction array
+function recalcWithdrawals(transactions) {
+  const wd = { pickup: 0, hk: 0, wp: 0 };
+  transactions.filter(t => t.type === 'withdrawal').forEach(t => {
+    if (t.category && wd[t.category] !== undefined) wd[t.category] += num(t.amount);
+  });
+  return wd;
+}
+
+async function importCSVBackup() {
+  const wFile  = document.getElementById('importWaitersFile').files[0];
+  const tFile  = document.getElementById('importTxnsFile').files[0];
+  const errEl  = document.getElementById('importError');
+  const errTxt = document.getElementById('importErrorText');
+  const preEl  = document.getElementById('importPreview');
+  const preTxt = document.getElementById('importPreviewText');
+
+  errEl.style.display = 'none';
+  preEl.style.display = 'none';
+
+  const showErr = msg => { errTxt.textContent = msg; errEl.style.display = 'flex'; };
+
+  if (!wFile) return showErr('Please select the Waiters CSV file.');
+  if (!tFile) return showErr('Please select the Transactions CSV file.');
+
+  try {
+    const [wText, tText] = await Promise.all([wFile.text(), tFile.text()]);
+
+    const rawWaiters = parseCSV(wText);
+    const rawTxns    = parseCSV(tText);
+
+    if (!rawWaiters.length) return showErr('Waiters CSV appears empty or invalid.');
+    if (!rawTxns.length)    return showErr('Transactions CSV appears empty or invalid.');
+
+    const incomingWaiters = rawWaiters.map(buildWaiter);
+    const incomingTxns    = rawTxns.map(buildTransaction);
+
+    if (importMode === 'replace') {
+      // ── REPLACE: wipe everything, load file data ──
+      store.waiters      = incomingWaiters;
+      store.transactions = incomingTxns;
+      store.withdrawals  = recalcWithdrawals(incomingTxns);
+      store.deleted_waiters = store.deleted_waiters || [];
+
+      preTxt.textContent = `Replaced with ${incomingWaiters.length} waiters & ${incomingTxns.length} transactions.`;
+      preEl.style.display = 'flex';
+      save();
+      closeModal('importModal');
+      showToast(`Data replaced: ${incomingWaiters.length} waiters, ${incomingTxns.length} transactions`, 'success');
+
+    } else {
+      // ── MERGE: add only records that don't already exist by ID ──
+      const existingWaiterIds = new Set(store.waiters.map(w => w.id));
+      const existingTxnIds    = new Set(store.transactions.map(t => t.id));
+
+      const newWaiters = incomingWaiters.filter(w => !existingWaiterIds.has(w.id));
+      const newTxns    = incomingTxns.filter(t => !existingTxnIds.has(t.id));
+
+      const skippedWaiters = incomingWaiters.length - newWaiters.length;
+      const skippedTxns    = incomingTxns.length - newTxns.length;
+
+      // Add new records
+      store.waiters.push(...newWaiters);
+
+      // Merge transactions and re-sort by date descending (latest first)
+      store.transactions.push(...newTxns);
+      store.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      // Recalculate withdrawals from the full merged transaction list
+      store.withdrawals = recalcWithdrawals(store.transactions);
+      store.deleted_waiters = store.deleted_waiters || [];
+
+      const summary = [
+        `Added ${newWaiters.length} new waiters`,
+        skippedWaiters > 0 ? `${skippedWaiters} already existed (skipped)` : null,
+        `Added ${newTxns.length} new transactions`,
+        skippedTxns > 0 ? `${skippedTxns} already existed (skipped)` : null,
+      ].filter(Boolean).join(' • ');
+
+      preTxt.textContent = summary;
+      preEl.style.display = 'flex';
+      save();
+      closeModal('importModal');
+      showToast(`Merge complete: +${newWaiters.length} waiters, +${newTxns.length} transactions`, 'success');
+    }
+
+    renderAll();
+
+  } catch (e) {
+    showErr('Failed to parse CSV: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  CLOSE MODALS ON OUTSIDE CLICK
+// ═══════════════════════════════════════════════
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', function(e) {
+    if (e.target === this) {
+      if (this.id === 'deleteModal') closeDeleteModal();
+      else if (this.id === 'changePasscodeModal') closeChangePasscodeModal();
+      else this.classList.remove('open');
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+function init() {
+  load();
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  document.getElementById('sidebarDate').textContent = dateStr;
+  document.getElementById('topbarDate').textContent = dateStr;
+
+  renderAll();
+  // Apply initial View Mode state after first render
+  if (typeof applyModeUI === 'function') applyModeUI();
+}
+
+// ═══════════════════════════════════════════════
+//  CHANGE PASSCODE
+// ═══════════════════════════════════════════════
+function showChangePasscodeModal() {
+  document.getElementById('cpCurrent').value = '';
+  document.getElementById('cpNew').value = '';
+  document.getElementById('cpConfirm').value = '';
+  document.getElementById('cpError').style.display = 'none';
+  document.getElementById('cpSuccess').style.display = 'none';
+  document.getElementById('cpStrengthBar').style.width = '0%';
+  document.getElementById('cpStrengthLabel').textContent = '';
+  // Reset all visibility toggles to password
+  ['cpCurrent','cpNew','cpConfirm'].forEach(id => {
+    document.getElementById(id).type = 'password';
+  });
+  ['cpCurrentBtn','cpNewBtn','cpConfirmBtn'].forEach(id => {
+    document.getElementById(id).textContent = '👁';
+  });
+  openModal('changePasscodeModal');
+  closeSidebar();
+  setTimeout(() => document.getElementById('cpCurrent').focus(), 100);
+}
+
+function closeChangePasscodeModal() {
+  closeModal('changePasscodeModal');
+}
+
+function toggleVis(inputId, btnId) {
+  const inp = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    btn.textContent = '👁';
+  }
+}
+
+function checkPasscodeStrength() {
+  const val = document.getElementById('cpNew').value;
+  const bar = document.getElementById('cpStrengthBar');
+  const lbl = document.getElementById('cpStrengthLabel');
+  if (!val) { bar.style.width = '0%'; lbl.textContent = ''; return; }
+
+  let score = 0;
+  if (val.length >= 4) score++;
+  if (val.length >= 6) score++;
+  if (/[a-zA-Z]/.test(val) && /[0-9]/.test(val)) score++;
+  if (val.length >= 8) score++;
+
+  const levels = [
+    { w: '25%', color: 'var(--red)',   label: 'Weak' },
+    { w: '50%', color: 'var(--amber)', label: 'Fair' },
+    { w: '75%', color: 'var(--blue)',  label: 'Good' },
+    { w: '100%',color: 'var(--green)', label: 'Strong' },
+  ];
+  const lvl = levels[Math.min(score - 1, 3)] || levels[0];
+  bar.style.width = lvl.w;
+  bar.style.background = lvl.color;
+  lbl.style.color = lvl.color;
+  lbl.textContent = lvl.label;
+}
+
+function saveNewPasscode() {
+  const current  = document.getElementById('cpCurrent').value;
+  const newCode  = document.getElementById('cpNew').value;
+  const confirm  = document.getElementById('cpConfirm').value;
+  const errEl    = document.getElementById('cpError');
+  const errMsg   = document.getElementById('cpErrorMsg');
+  const successEl = document.getElementById('cpSuccess');
+
+  errEl.style.display = 'none';
+  successEl.style.display = 'none';
+
+  const showErr = (msg) => {
+    errMsg.textContent = msg;
+    errEl.style.display = 'flex';
+  };
+
+  if (!current)             return showErr('Enter your current passcode.');
+  if (current !== getPasscode()) return showErr('Current passcode is incorrect.');
+  if (!newCode)             return showErr('Enter a new passcode.');
+  if (newCode.length < 4)   return showErr('New passcode must be at least 4 characters.');
+  if (newCode !== confirm)  return showErr('New passcode and confirmation do not match.');
+  if (newCode === current)  return showErr('New passcode must be different from current.');
+
+  localStorage.setItem('tipflow_passcode', newCode);
+  successEl.style.display = 'flex';
+  document.getElementById('cpCurrent').value = '';
+  document.getElementById('cpNew').value = '';
+  document.getElementById('cpConfirm').value = '';
+  document.getElementById('cpStrengthBar').style.width = '0%';
+  document.getElementById('cpStrengthLabel').textContent = '';
+
+  showToast('Passcode updated successfully', 'success');
+  setTimeout(closeChangePasscodeModal, 1200);
+}
+
+// ═══════════════════════════════════════════════
+//  MODE TOGGLE SYSTEM
+// ═══════════════════════════════════════════════
+let _isEditMode = false;
+
+function isEditMode() { return _isEditMode; }
+
+// IDs of buttons/elements that must be disabled in View Mode
+const EDIT_ONLY_BTN_IDS = [
+  'btnAddWaiterPage',      // "Add Waiter" button on Waiters page
+  'btnRecordPayment',      // "Record Payment" button on Collection page
+  'btnWithdraw',           // "Withdraw" button on Withdrawal page
+  'btnImportSidebar',      // Import CSV sidebar button
+];
+
+// Apply/remove view-mode disabled state across the UI
+function applyModeUI() {
+  const banner = document.getElementById('modeBanner');
+  const modeLabel = document.getElementById('modeLabel');
+  const modeHint = document.getElementById('modeHint');
+  const btnEnter = document.getElementById('btnEnterEdit');
+  const btnExit = document.getElementById('btnExitEdit');
+
+  if (_isEditMode) {
+    banner.className = 'edit-mode';
+    modeLabel.textContent = '✎ Edit Mode — Admin Active';
+    modeHint.textContent = 'All features unlocked. Click "Back to View Mode" when done.';
+    btnEnter.style.display = 'none';
+    btnExit.style.display = '';
+  } else {
+    banner.className = 'view-mode';
+    modeLabel.textContent = '🔒 View Mode — Read Only';
+    modeHint.textContent = 'Data is protected. Enter Edit Mode to make changes.';
+    btnEnter.style.display = '';
+    btnExit.style.display = 'none';
+  }
+
+  // Disable/enable: Add Waiter button (Waiters page header)
+  const addWaiterBtns = document.querySelectorAll('#page-waiters .btn-primary');
+  addWaiterBtns.forEach(btn => {
+    if (_isEditMode) btn.classList.remove('view-mode-disabled');
+    else btn.classList.add('view-mode-disabled');
+  });
+
+  // Disable/enable: Record Payment button (Collection page)
+  const payBtn = document.querySelector('#page-collection .btn-primary.btn-full');
+  if (payBtn) {
+    if (_isEditMode) payBtn.classList.remove('view-mode-disabled');
+    else payBtn.classList.add('view-mode-disabled');
+  }
+
+  // Disable/enable: Quick amount buttons
+  document.querySelectorAll('.quick-btn').forEach(btn => {
+    if (_isEditMode) btn.classList.remove('view-mode-disabled');
+    else btn.classList.add('view-mode-disabled');
+  });
+
+  // Disable/enable: Collection form inputs
+  ['collWaiter', 'collAmount', 'collNote'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !_isEditMode;
+  });
+
+  // Disable/enable: Withdrawal form inputs + button
+  ['wdCategory', 'wdAmount', 'wdNote'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !_isEditMode;
+  });
+  const wdBtn = document.querySelector('#page-withdrawal .btn-primary');
+  if (wdBtn) {
+    if (_isEditMode) wdBtn.classList.remove('view-mode-disabled');
+    else wdBtn.classList.add('view-mode-disabled');
+  }
+
+  // Disable/enable: Import CSV sidebar button
+  const importBtn = document.querySelector('.sidebar-footer button[onclick*="showImportModal"]');
+  if (importBtn) {
+    if (_isEditMode) importBtn.classList.remove('view-mode-disabled');
+    else importBtn.classList.add('view-mode-disabled');
+  }
+
+  // Disable/enable: Delete buttons in waiter table (re-rendered dynamically, handled in renderWaiters)
+  document.querySelectorAll('#waiterTableBody .btn-danger').forEach(btn => {
+    if (_isEditMode) btn.classList.remove('view-mode-disabled');
+    else btn.classList.add('view-mode-disabled');
+  });
+}
+
+function promptEnterEditMode() {
+  document.getElementById('modePasscodeInput').value = '';
+  document.getElementById('modePasscodeError').style.display = 'none';
+  document.getElementById('modePasscodeInput').type = 'password';
+  document.getElementById('modePasscodeVisBtn').textContent = '👁';
+  openModal('modePasscodeModal');
+  setTimeout(() => document.getElementById('modePasscodeInput').focus(), 120);
+}
+
+function verifyModePasscode() {
+  const entered = document.getElementById('modePasscodeInput').value;
+  const errEl = document.getElementById('modePasscodeError');
+  const errMsg = document.getElementById('modePasscodeErrorMsg');
+
+  if (!entered) {
+    errMsg.textContent = 'Passcode cannot be empty.';
+    errEl.style.display = 'flex';
+    return;
+  }
+
+  if (entered === getPasscode()) {
+    errEl.style.display = 'none';
+    _isEditMode = true;
+    closeModal('modePasscodeModal');
+    applyModeUI();
+    showToast('Edit Mode unlocked', 'success');
+  } else {
+    errMsg.textContent = 'Incorrect passcode. Try again.';
+    errEl.style.display = 'flex';
+    document.getElementById('modePasscodeInput').value = '';
+    document.getElementById('modePasscodeInput').focus();
+  }
+}
+
+function exitEditMode() {
+  _isEditMode = false;
+  applyModeUI();
+  showToast('Switched to View Mode', 'info');
+}
+
+function toggleModePasscodeVis() {
+  const inp = document.getElementById('modePasscodeInput');
+  const btn = document.getElementById('modePasscodeVisBtn');
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+  else { inp.type = 'password'; btn.textContent = '👁'; }
+}
+
+// ── Guard wrappers: block data-write functions in View Mode ──
+const _origAddPayment = addPayment;
+addPayment = function() {
+  if (!_isEditMode) { showToast('🔒 Enter Edit Mode to record payments', 'warning'); return; }
+  _origAddPayment.apply(this, arguments);
+};
+
+const _origAddWithdrawal = addWithdrawal;
+addWithdrawal = function() {
+  if (!_isEditMode) { showToast('🔒 Enter Edit Mode to add withdrawals', 'warning'); return; }
+  _origAddWithdrawal.apply(this, arguments);
+};
+
+const _origSaveNewWaiter = saveNewWaiter;
+saveNewWaiter = function() {
+  if (!_isEditMode) { showToast('🔒 Enter Edit Mode to add waiters', 'warning'); return; }
+  _origSaveNewWaiter.apply(this, arguments);
+};
+
+const _origDeleteWaiter = deleteWaiter;
+deleteWaiter = function() {
+  if (!_isEditMode) { showToast('🔒 Enter Edit Mode to delete waiters', 'warning'); return; }
+  _origDeleteWaiter.apply(this, arguments);
+};
+
+const _origShowImportModal = showImportModal;
+showImportModal = function() {
+  if (!_isEditMode) { showToast('🔒 Enter Edit Mode to import data', 'warning'); return; }
+  _origShowImportModal.apply(this, arguments);
+};
+
+const _origShowAddWaiterModal = showAddWaiterModal;
+showAddWaiterModal = function() {
+  if (!_isEditMode) { showToast('🔒 Enter Edit Mode to add waiters', 'warning'); return; }
+  _origShowAddWaiterModal.apply(this, arguments);
+};
+
+init();
+</script>
+</body>
+</html>
