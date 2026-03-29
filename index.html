@@ -1349,11 +1349,11 @@ window.dispatchEvent(new Event('fbReady'));
     <div class="card mt-6">
       <div class="card-title">Payment Allocation Priority</div>
       <div class="flex gap-3" style="flex-wrap:wrap;margin-bottom:16px">
-        <span class="priority-badge"><span class="priority-dot" style="background:var(--wp)"></span> 1st — Wiping</span>
+        <span class="priority-badge"><span class="priority-dot" style="background:var(--wp)"></span> 1st — Wiping (full)</span>
         <span style="color:var(--text3);align-self:center">→</span>
-        <span class="priority-badge"><span class="priority-dot" style="background:var(--hk)"></span> 2nd — Housekeeping</span>
-        <span style="color:var(--text3);align-self:center">→</span>
-        <span class="priority-badge"><span class="priority-dot" style="background:var(--pickup)"></span> 3rd — Pickup</span>
+        <span class="priority-badge"><span class="priority-dot" style="background:var(--hk)"></span> 2nd — Housekeeping (50%)</span>
+        <span style="color:var(--text3);align-self:center">+</span>
+        <span class="priority-badge"><span class="priority-dot" style="background:var(--pickup)"></span> 2nd — Pickup (50%)</span>
       </div>
       <div class="divider"></div>
       <div class="card-title">How It Works</div>
@@ -1361,9 +1361,10 @@ window.dispatchEvent(new Event('fbReady'));
         1. When a waiter pays, the system calculates all missed days from their last payment (or join date).<br>
         2. Any previous pending amounts are carried over.<br>
         3. Any previous advance is added to the incoming payment.<br>
-        4. Payment is applied in order: Wiping → Housekeeping → Pickup.<br>
-        5. If payment exceeds total dues, the remainder becomes advance (credit for next payment).<br>
-        6. Last paid date is automatically updated to today.
+        4. Wiping is cleared first. The remaining amount is split 50/50 between Housekeeping and Pickup.<br>
+        5. If one of HK or Pickup clears fully before using its half-share, the leftover flows to the other.<br>
+        6. If payment exceeds total dues, the remainder becomes advance (credit for next payment).<br>
+        7. Last paid date is automatically updated to today.
       </div>
     </div>
   </div>
@@ -1832,22 +1833,34 @@ function simulatePayment(waiter, amount) {
   // Add advance to payment
   const effectivePayment = amount + (waiter.advance || 0);
 
-  // Allocate: Wiping → Housekeeping → Pickup
+  // Allocate: Step 1 → Wiping (full priority)
+  //           Step 2 → Remaining split 50/50 between HK and Pickup
+  //           Step 3 → If one category clears before using its share, overflow goes to the other
   let remaining = effectivePayment;
 
   let paidWp = 0, paidHk = 0, paidPickup = 0;
 
-  // Wiping
+  // ── Step 1: Clear Wiping first ──
   paidWp = Math.min(remaining, totalPendingWp);
   remaining -= paidWp;
 
-  // Housekeeping
-  paidHk = Math.min(remaining, totalPendingHk);
-  remaining -= paidHk;
+  // ── Step 2 & 3: Split remaining 50/50 between HK and Pickup, overflow to the other ──
+  if (remaining > 0) {
+    const half = remaining / 2;
 
-  // Pickup
-  paidPickup = Math.min(remaining, totalPendingPickup);
-  remaining -= paidPickup;
+    // Each category gets at most its pending or its half-share, whichever is smaller
+    const hkShare    = Math.min(half, totalPendingHk);
+    const pickupShare = Math.min(half, totalPendingPickup);
+
+    // Overflow: if HK was fully cleared with less than its half, the leftover goes to Pickup
+    const hkOverflow     = half - hkShare;      // unused HK share
+    const pickupOverflow = half - pickupShare;  // unused Pickup share
+
+    paidHk     = Math.min(hkShare     + pickupOverflow, totalPendingHk);
+    paidPickup = Math.min(pickupShare + hkOverflow,     totalPendingPickup);
+
+    remaining -= (paidHk + paidPickup);
+  }
 
   // Remaining is advance
   const newAdvance = remaining;
