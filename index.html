@@ -213,6 +213,7 @@
   .g2 { grid-template-columns: repeat(2, 1fr); }
   .g3 { grid-template-columns: repeat(3, 1fr); }
   .g4 { grid-template-columns: repeat(4, 1fr); }
+  .g5 { grid-template-columns: repeat(5, 1fr); }
 
   /* ─── STAT CARDS ─── */
   .stat-card {
@@ -778,7 +779,7 @@
 
     .menu-toggle { display: flex; }
 
-    .g4, .g3 { grid-template-columns: repeat(2, 1fr); }
+    .g4, .g5, .g3 { grid-template-columns: repeat(2, 1fr); }
     .g2 { grid-template-columns: 1fr; }
 
     .page { padding: 20px 16px; }
@@ -797,7 +798,7 @@
   }
 
   @media (max-width: 480px) {
-    .g4, .g3, .g2 { grid-template-columns: 1fr; }
+    .g4, .g5, .g3, .g2 { grid-template-columns: 1fr; }
   }
 
   /* ─── UTILS ─── */
@@ -1061,7 +1062,7 @@
 
   <!-- DASHBOARD -->
   <div class="page active" id="page-dashboard">
-    <div class="grid g4 mb-4" id="dashStats"></div>
+    <div class="grid g5 mb-4" id="dashStats"></div>
     <div class="grid g3 mt-4" id="dashCats"></div>
     <div class="card mt-6">
       <div class="section-header">
@@ -1310,16 +1311,72 @@
 
 <!-- ADD WAITER MODAL -->
 <div class="modal-overlay" id="addWaiterModal">
-  <div class="modal">
+  <div class="modal" style="width:460px">
     <div class="modal-title">Add New Waiter</div>
+
     <div class="form-group">
       <label>Waiter Name</label>
       <input type="text" id="newWaiterName" placeholder="e.g. Rajesh Kumar"
-        onkeydown="if(event.key==='Enter')saveNewWaiter()" />
+        onkeydown="if(event.key==='Enter')document.getElementById('newWaiterJoinDate').focus()" />
     </div>
-    <div class="info-banner" style="margin-top:12px">
-      <span>ℹ</span> Join date will be set to today automatically.
+
+    <div class="form-group">
+      <label>Join Date</label>
+      <input type="date" id="newWaiterJoinDate" />
+      <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:6px">
+        Leave blank to use today's date
+      </div>
     </div>
+
+    <div style="margin-bottom:6px">
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        Initial Pending Balances
+        <span style="font-family:'DM Sans',sans-serif;font-size:11px;background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,0.3);border-radius:20px;padding:2px 8px;font-weight:500;letter-spacing:0">OPTIONAL</span>
+      </label>
+      <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:12px;line-height:1.6">
+        Past dues owed before using TipFlow — enter per category.
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div>
+          <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--pickup);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">🚗 Pickup</div>
+          <input type="number" id="newWaiterInitPickup" placeholder="0" min="0"
+            oninput="updateInitPendingPreview()" style="text-align:center" />
+        </div>
+        <div>
+          <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--hk);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">🧹 Housekeeping</div>
+          <input type="number" id="newWaiterInitHk" placeholder="0" min="0"
+            oninput="updateInitPendingPreview()" style="text-align:center" />
+        </div>
+        <div>
+          <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--wp);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">🧽 Wiping</div>
+          <input type="number" id="newWaiterInitWp" placeholder="0" min="0"
+            oninput="updateInitPendingPreview()"
+            onkeydown="if(event.key==='Enter')saveNewWaiter()" style="text-align:center" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Live preview strip -->
+    <div id="initPendingPreview" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:4px;font-size:13px">
+      <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Opening Balance Summary</div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text2)">🚗 Pickup Pending</span>
+        <span id="initPendingPickupVal" style="font-family:'DM Mono',monospace;color:var(--pickup)">₹0</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text2)">🧹 Housekeeping Pending</span>
+        <span id="initPendingHkVal" style="font-family:'DM Mono',monospace;color:var(--hk)">₹0</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text2)">🧽 Wiping Pending</span>
+        <span id="initPendingWpVal" style="font-family:'DM Mono',monospace;color:var(--wp)">₹0</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:7px 0 0">
+        <span style="color:var(--text2);font-weight:600">Total Opening Pending</span>
+        <span id="initPendingTotalVal" style="font-family:'DM Mono',monospace;color:var(--amber);font-weight:600">₹0</span>
+      </div>
+    </div>
+
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('addWaiterModal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveNewWaiter()">Add Waiter</button>
@@ -1874,6 +1931,11 @@ function getTotalPending() {
     s + (w.pending_pickup || 0) + (w.pending_hk || 0) + (w.pending_wp || 0), 0);
 }
 
+function getTotalAdvance() {
+  // Sum of all advance balances = total cash sitting in collectors' hands
+  return store.waiters.reduce((s, w) => s + (w.advance || 0), 0);
+}
+
 // ═══════════════════════════════════════════════
 //  WAITER MANAGEMENT
 // ═══════════════════════════════════════════════
@@ -1883,8 +1945,30 @@ function genId() {
 
 function showAddWaiterModal() {
   document.getElementById('newWaiterName').value = '';
+  document.getElementById('newWaiterJoinDate').value = '';
+  document.getElementById('newWaiterInitPickup').value = '';
+  document.getElementById('newWaiterInitHk').value = '';
+  document.getElementById('newWaiterInitWp').value = '';
+  document.getElementById('initPendingPreview').style.display = 'none';
   openModal('addWaiterModal');
   setTimeout(() => document.getElementById('newWaiterName').focus(), 100);
+}
+
+function updateInitPendingPreview() {
+  const pickup = parseFloat(document.getElementById('newWaiterInitPickup').value) || 0;
+  const hk     = parseFloat(document.getElementById('newWaiterInitHk').value)     || 0;
+  const wp     = parseFloat(document.getElementById('newWaiterInitWp').value)     || 0;
+  const total  = pickup + hk + wp;
+  const preview = document.getElementById('initPendingPreview');
+  if (total > 0) {
+    document.getElementById('initPendingPickupVal').textContent = `₹${pickup.toLocaleString('en-IN')}`;
+    document.getElementById('initPendingHkVal').textContent     = `₹${hk.toLocaleString('en-IN')}`;
+    document.getElementById('initPendingWpVal').textContent     = `₹${wp.toLocaleString('en-IN')}`;
+    document.getElementById('initPendingTotalVal').textContent  = `₹${total.toLocaleString('en-IN')}`;
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
 }
 
 function saveNewWaiter() {
@@ -1892,32 +1976,54 @@ function saveNewWaiter() {
   if (!name) { showToast('Enter waiter name', 'error'); return; }
 
   const todayStr = today();
+  const joinDateInput = document.getElementById('newWaiterJoinDate').value;
+  const joinDate = joinDateInput || todayStr;
+
+  const initPickup = parseFloat(document.getElementById('newWaiterInitPickup').value) || 0;
+  const initHk     = parseFloat(document.getElementById('newWaiterInitHk').value)     || 0;
+  const initWp     = parseFloat(document.getElementById('newWaiterInitWp').value)      || 0;
+
+  if (initPickup < 0 || initHk < 0 || initWp < 0) {
+    showToast('Initial pending values cannot be negative', 'error'); return;
+  }
+
+  const initTotal = initPickup + initHk + initWp;
+
   const newWaiter = {
     id: genId(),
     name,
-    joinDate: todayStr,
+    joinDate,
     lastPaidDate: null,
     paid: 0,
-    pending_pickup: 0,
-    pending_hk: 0,
-    pending_wp: 0,
+    pending_pickup: initPickup,
+    pending_hk:     initHk,
+    pending_wp:     initWp,
     advance: 0
   };
   store.waiters.push(newWaiter);
 
-  // Log staff event
-  store.transactions.unshift({
+  // Log staff event — include initial pending breakdown for history transparency
+  const txn = {
     id: genId(),
     type: 'waiter_added',
     date: new Date().toISOString(),
     waiterId: newWaiter.id,
     waiterName: name,
-    joinDate: todayStr
-  });
+    joinDate
+  };
+  if (initTotal > 0) {
+    txn.initPending = initTotal;
+    txn.initPendingPickup = initPickup;
+    txn.initPendingHk     = initHk;
+    txn.initPendingWp     = initWp;
+  }
+  store.transactions.unshift(txn);
 
   save();
   closeModal('addWaiterModal');
-  showToast(`${name} added successfully`, 'success');
+
+  const pendingNote = initTotal > 0 ? ` — ₹${initTotal} opening pending added` : '';
+  showToast(`${name} added successfully${pendingNote}`, 'success');
   renderAll();
 }
 
@@ -2113,6 +2219,8 @@ function renderDashboard() {
   const totalPending = getTotalPending();
   const totalBalance = getCategoryBalance('pickup') + getCategoryBalance('hk') + getCategoryBalance('wp');
   const totalWithdrawn = getCategoryWithdrawn('pickup') + getCategoryWithdrawn('hk') + getCategoryWithdrawn('wp');
+  const totalAdvance = getTotalAdvance();
+  const advanceCount = store.waiters.filter(w => (w.advance || 0) > 0).length;
 
   document.getElementById('dashStats').innerHTML = `
     <div class="stat-card" style="--accent-color:var(--green)">
@@ -2138,6 +2246,12 @@ function renderDashboard() {
       <div class="stat-value">₹${totalWithdrawn.toLocaleString('en-IN')}</div>
       <div class="stat-sub">${store.transactions.filter(t=>t.type==='withdrawal').length} withdrawals</div>
       <div class="stat-icon">⊖</div>
+    </div>
+    <div class="stat-card" style="--accent-color:var(--blue)">
+      <div class="stat-label">Advance with Collector</div>
+      <div class="stat-value" style="color:var(--blue)">₹${totalAdvance.toLocaleString('en-IN')}</div>
+      <div class="stat-sub">${advanceCount} waiter${advanceCount !== 1 ? 's' : ''} holding advance</div>
+      <div class="stat-icon" style="opacity:0.3">⊕</div>
     </div>
   `;
 
@@ -2455,11 +2569,22 @@ function renderHistory() {
 
     // ── Waiter Added ──
     if (t.type === 'waiter_added') {
+      const initTotal = t.initPending || 0;
+      const initBreakdown = initTotal > 0 ? (() => {
+        const parts = [];
+        if (t.initPendingPickup > 0) parts.push(`🚗 ₹${t.initPendingPickup}`);
+        if (t.initPendingHk     > 0) parts.push(`🧹 ₹${t.initPendingHk}`);
+        if (t.initPendingWp     > 0) parts.push(`🧽 ₹${t.initPendingWp}`);
+        return parts.join(' • ');
+      })() : '';
+      const initPendingBadge = initTotal > 0
+        ? `<span class="badge badge-amber" style="margin-left:8px">₹${initTotal.toLocaleString('en-IN')} opening balance</span>`
+        : '';
       return `
         <div class="history-item" style="border-left:3px solid var(--green)">
           <div class="history-info">
-            <div class="history-title" style="color:var(--green)">👤 Waiter Added — ${t.waiterName}</div>
-            <div class="history-meta">${formatDateTime(t.date)} • Join date: ${formatDate(t.joinDate)}</div>
+            <div class="history-title" style="color:var(--green)">👤 Waiter Added — ${t.waiterName}${initPendingBadge}</div>
+            <div class="history-meta">${formatDateTime(t.date)} • Join date: ${formatDate(t.joinDate)}${initBreakdown ? ' • ' + initBreakdown : ''}</div>
           </div>
           <div><span class="badge badge-green">ADDED</span></div>
         </div>`;
