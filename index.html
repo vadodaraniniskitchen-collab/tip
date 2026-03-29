@@ -5,6 +5,50 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TipFlow — Staff Contribution Manager</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script type="module">
+// ═══════════════════════════════════════════════
+//  FIREBASE SETUP
+// ═══════════════════════════════════════════════
+import { initializeApp }              from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getFirestore, doc, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyDMupFmkCppBnNMeWnbKNTRlyX3nR2TOic",
+  authDomain:        "one-more-try-f1050.firebaseapp.com",
+  projectId:         "one-more-try-f1050",
+  storageBucket:     "one-more-try-f1050.firebasestorage.app",
+  messagingSenderId: "530126899027",
+  appId:             "1:530126899027:web:4f0931d63d71bc106ec3a6"
+};
+
+const _fbApp = initializeApp(firebaseConfig);
+const _db    = getFirestore(_fbApp);
+const _dataRef    = () => doc(_db, 'myData', 'latest');
+const _passcodeRef = () => doc(_db, 'myData', 'passcode');
+
+// Expose Firebase helpers onto window so the main script can call them
+window._fbSaveData = async (storeObj) => {
+  await setDoc(_dataRef(), { ...storeObj, _savedAt: new Date().toISOString() });
+};
+
+window._fbLoadData = async () => {
+  const snap = await getDoc(_dataRef());
+  return snap.exists() ? snap.data() : null;
+};
+
+window._fbSavePasscode = async (code) => {
+  await setDoc(_passcodeRef(), { passcode: code, _savedAt: new Date().toISOString() });
+};
+
+window._fbLoadPasscode = async () => {
+  const snap = await getDoc(_passcodeRef());
+  return snap.exists() ? snap.data().passcode : null;
+};
+
+// Signal that Firebase is ready
+window._fbReady = true;
+window.dispatchEvent(new Event('fbReady'));
+</script>
 <style>
   :root {
     --bg: #0a0a0f;
@@ -1002,6 +1046,23 @@
 
 <div class="overlay-bg" id="overlayBg" onclick="closeSidebar()"></div>
 
+<!-- FIREBASE LOADING OVERLAY -->
+<div id="loadingOverlay" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:18px">
+  <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;background:linear-gradient(135deg,#6c63ff,#22d3a5);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">TipFlow</div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <div style="width:8px;height:8px;border-radius:50%;background:var(--accent);animation:dotPulse 1.2s infinite 0s"></div>
+    <div style="width:8px;height:8px;border-radius:50%;background:var(--accent);animation:dotPulse 1.2s infinite 0.2s"></div>
+    <div style="width:8px;height:8px;border-radius:50%;background:var(--accent);animation:dotPulse 1.2s infinite 0.4s"></div>
+  </div>
+  <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text3);letter-spacing:0.5px">Loading from cloud…</div>
+</div>
+<style>
+@keyframes dotPulse {
+  0%,80%,100% { transform:scale(0.6); opacity:0.4; }
+  40% { transform:scale(1); opacity:1; }
+}
+</style>
+
 <!-- SIDEBAR -->
 <aside id="sidebar">
   <div class="sidebar-brand">
@@ -1641,21 +1702,36 @@ let store = {
 let deleteTargetId = null;
 
 // ═══════════════════════════════════════════════
-//  PERSISTENCE
+//  PERSISTENCE  (Firebase Firestore)
 // ═══════════════════════════════════════════════
+
+// Debounce timer so rapid successive save() calls collapse into one write
+let _saveTimer = null;
+
 function save() {
-  localStorage.setItem('tipflow_data', JSON.stringify(store));
+  // Debounce: wait 400 ms after the last call before writing to Firestore
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => {
+    try {
+      await window._fbSaveData(store);
+    } catch (e) {
+      console.error('Firestore save error:', e);
+      showToast('⚠ Cloud save failed — check connection', 'warning');
+    }
+  }, 400);
 }
 
-function load() {
-  const raw = localStorage.getItem('tipflow_data');
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      store = { withdrawals: { pickup: 0, hk: 0, wp: 0 }, deleted_waiters: [], ...parsed };
-    } catch (e) {
-      console.error('Load error', e);
+async function load() {
+  try {
+    const data = await window._fbLoadData();
+    if (data) {
+      // Strip internal Firestore timestamp before merging
+      const { _savedAt, ...rest } = data;
+      store = { withdrawals: { pickup: 0, hk: 0, wp: 0 }, deleted_waiters: [], ...rest };
     }
+  } catch (e) {
+    console.error('Firestore load error:', e);
+    showToast('⚠ Could not load cloud data — check connection', 'error');
   }
 }
 
@@ -2028,9 +2104,11 @@ function saveNewWaiter() {
 }
 
 // ─── DELETE WAITER — multi-step ───
-// Passcode is stored in localStorage so manager can change it in-app
+// Passcode is stored in Firestore; cached in memory after load
+let _cachedPasscode = '1234';
+
 function getPasscode() {
-  return localStorage.getItem('tipflow_passcode') || '1234';
+  return _cachedPasscode;
 }
 let deleteMode = null; // 'keep' | 'all'
 
@@ -3037,8 +3115,23 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 // ═══════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════
-function init() {
-  load();
+async function init() {
+  // Show loading overlay while fetching from Firestore
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) overlay.style.display = 'flex';
+
+  try {
+    // Load passcode from Firestore first
+    const savedPasscode = await window._fbLoadPasscode();
+    if (savedPasscode) _cachedPasscode = savedPasscode;
+
+    // Load main store data
+    await load();
+  } catch(e) {
+    console.error('Init load error:', e);
+  }
+
+  if (overlay) overlay.style.display = 'none';
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
@@ -3137,7 +3230,11 @@ function saveNewPasscode() {
   if (newCode !== confirm)  return showErr('New passcode and confirmation do not match.');
   if (newCode === current)  return showErr('New passcode must be different from current.');
 
-  localStorage.setItem('tipflow_passcode', newCode);
+  _cachedPasscode = newCode;
+  window._fbSavePasscode(newCode).catch(e => {
+    console.error('Passcode save error:', e);
+    showToast('⚠ Passcode save failed — check connection', 'warning');
+  });
   successEl.style.display = 'flex';
   document.getElementById('cpCurrent').value = '';
   document.getElementById('cpNew').value = '';
@@ -3321,7 +3418,12 @@ showAddWaiterModal = function() {
   _origShowAddWaiterModal.apply(this, arguments);
 };
 
-init();
+// Wait for the Firebase module script to finish initializing before running init()
+if (window._fbReady) {
+  init();
+} else {
+  window.addEventListener('fbReady', () => init());
+}
 </script>
 </body>
 </html>
