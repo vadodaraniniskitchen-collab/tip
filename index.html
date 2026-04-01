@@ -25,6 +25,7 @@ const _fbApp = initializeApp(firebaseConfig);
 const _db    = getFirestore(_fbApp);
 const _dataRef    = () => doc(_db, 'myData', 'latest');
 const _passcodeRef = () => doc(_db, 'myData', 'passcode');
+const _usersRef   = () => doc(_db, 'myData', 'users');
 
 // Expose Firebase helpers onto window so the main script can call them
 window._fbSaveData = async (storeObj) => {
@@ -43,6 +44,16 @@ window._fbSavePasscode = async (code) => {
 window._fbLoadPasscode = async () => {
   const snap = await getDoc(_passcodeRef());
   return snap.exists() ? snap.data().passcode : null;
+};
+
+// ── User management helpers ──
+window._fbSaveUsers = async (usersArr) => {
+  await setDoc(_usersRef(), { users: usersArr, _savedAt: new Date().toISOString() });
+};
+
+window._fbLoadUsers = async () => {
+  const snap = await getDoc(_usersRef());
+  return snap.exists() ? (snap.data().users || []) : [];
 };
 
 // Signal that Firebase is ready
@@ -1040,11 +1051,136 @@ window.dispatchEvent(new Event('fbReady'));
   }
   .delete-opt-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
   .delete-opt-sub { font-size: 12px; color: var(--text3); line-height: 1.5; }
+
+  /* ─── AUTH / LOGIN PANEL ─── */
+  #loginScreen {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 8000;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    backdrop-filter: blur(4px);
+  }
+  #loginScreen.visible { display: flex; }
+
+  .login-card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 36px 32px;
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    animation: fadeIn 0.25s ease;
+  }
+
+  .login-brand {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  .login-brand .brand-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 28px;
+    background: linear-gradient(135deg, #6c63ff, #22d3a5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .login-brand .brand-sub {
+    font-size: 11px;
+    color: var(--text3);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+  }
+
+  /* ─── ROLE BADGE IN TOPBAR ─── */
+  .role-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+  }
+  .role-chip.admin    { background: rgba(108,99,255,0.15); color: var(--accent2); border: 1px solid rgba(108,99,255,0.3); }
+  .role-chip.collector{ background: rgba(56,189,248,0.12); color: var(--blue);    border: 1px solid rgba(56,189,248,0.3); }
+  .role-chip.staff    { background: rgba(34,211,165,0.12); color: var(--green);   border: 1px solid rgba(34,211,165,0.3); }
+  .role-chip.waiter   { background: rgba(245,158,11,0.12); color: var(--amber);   border: 1px solid rgba(245,158,11,0.3); }
+
+  /* ─── STAFF PERSONAL DASHBOARD ─── */
+  #page-staff-dashboard .staff-stat {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+  }
+
+  /* ─── ADMIN USERS PAGE ─── */
+  .user-row-role {
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    padding: 2px 8px;
+    border-radius: 20px;
+    display: inline-block;
+  }
+
+  /* nav items hidden per role */
+  .nav-item[data-role-hide] { display: none; }
 </style>
 </head>
 <body>
 
 <div class="overlay-bg" id="overlayBg" onclick="closeSidebar()"></div>
+
+<!-- ══════════════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════════════ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div class="login-brand" style="margin-bottom:0;text-align:left">
+        <div class="brand-name">Sign In</div>
+        <div class="brand-sub">FOR ADDITIONAL ACCESS</div>
+      </div>
+      <button onclick="closeLoginPanel()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:20px;padding:4px;line-height:1" title="Close">✕</button>
+    </div>
+    <div class="form-group">
+      <label>User ID</label>
+      <input type="text" id="loginUserId" placeholder="Enter your user ID"
+        autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('loginPasscode').focus()" />
+    </div>
+    <div class="form-group">
+      <label>Passcode</label>
+      <div style="position:relative">
+        <input type="password" id="loginPasscode" placeholder="Enter passcode"
+          style="padding-right:44px;letter-spacing:3px;font-size:16px"
+          onkeydown="if(event.key==='Enter')attemptLogin()" />
+        <button type="button" onclick="toggleLoginVis()"
+          style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px"
+          id="loginVisBtn">👁</button>
+      </div>
+    </div>
+    <div id="loginError" style="display:none" class="warn-banner">
+      <span>✕</span> <span id="loginErrorMsg">Invalid credentials.</span>
+    </div>
+    <button class="btn btn-primary btn-full mt-4" onclick="attemptLogin()">→ Sign In</button>
+    <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="closeLoginPanel()">Continue as Guest</button>
+    <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:12px;font-family:'DM Mono',monospace;line-height:1.6">
+      Guest can view the dashboard only.<br>Sign in for role-based access.
+    </div>
+  </div>
+</div>
 
 <!-- FIREBASE LOADING OVERLAY -->
 <div id="loadingOverlay" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:18px">
@@ -1074,29 +1210,42 @@ window.dispatchEvent(new Event('fbReady'));
     <span id="sidebarDate">—</span>
   </div>
   <nav>
-    <div class="nav-item active" onclick="showPage('dashboard')">
+    <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard">
       <span class="icon">◈</span> Dashboard
     </div>
-    <div class="nav-item" onclick="showPage('waiters')">
+    <div class="nav-item" onclick="showPage('staff-dashboard')" id="nav-staff-dashboard" style="display:none">
+      <span class="icon">◈</span> My Dashboard
+    </div>
+    <div class="nav-item" onclick="showPage('waiters')" id="nav-waiters">
       <span class="icon">◉</span> Waiters
     </div>
-    <div class="nav-item" onclick="showPage('collection')">
+    <div class="nav-item" onclick="showPage('collection')" id="nav-collection">
       <span class="icon">◎</span> Collection
     </div>
-    <div class="nav-item" onclick="showPage('withdrawal')">
+    <div class="nav-item" onclick="showPage('withdrawal')" id="nav-withdrawal">
       <span class="icon">⊖</span> Withdrawal
     </div>
-    <div class="nav-item" onclick="showPage('history')">
+    <div class="nav-item" onclick="showPage('history')" id="nav-history">
       <span class="icon">⊟</span> History
     </div>
-    <div class="nav-item" onclick="showPage('rules')">
+    <div class="nav-item" onclick="showPage('rules')" id="nav-rules">
       <span class="icon">⊕</span> Rules
+    </div>
+    <div class="nav-item" onclick="showPage('users')" id="nav-users" style="display:none">
+      <span class="icon">⊞</span> Users
     </div>
   </nav>
   <div class="sidebar-footer">
-    <button class="btn btn-ghost btn-sm" onclick="exportCSVBackup()">⬇ Export CSV</button>
-    <button class="btn btn-ghost btn-sm" onclick="showImportModal()">⬆ Import CSV</button>
-    <button class="btn btn-ghost btn-sm" onclick="showChangePasscodeModal()" style="border-color:rgba(108,99,255,0.3);color:var(--accent2)">🔑 Change Passcode</button>
+    <div id="sidebarUserInfo" style="padding:8px 4px;border-bottom:1px solid var(--border);margin-bottom:8px;display:none">
+      <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:4px">SIGNED IN AS</div>
+      <div id="sidebarUserName" style="font-weight:600;font-size:14px;margin-bottom:4px">—</div>
+      <div id="sidebarRoleChip"></div>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="btnExportCsv" onclick="exportCSVBackup()">⬇ Export CSV</button>
+    <button class="btn btn-ghost btn-sm" id="btnImportCsv" onclick="showImportModal()">⬆ Import CSV</button>
+    <button class="btn btn-ghost btn-sm" id="btnChangePasscode" onclick="showChangePasscodeModal()" style="border-color:rgba(108,99,255,0.3);color:var(--accent2)">🔑 Change Passcode</button>
+    <button class="btn btn-ghost btn-sm" id="btnSignIn" onclick="openLoginPanel()" style="border-color:rgba(108,99,255,0.3);color:var(--accent2)">→ Sign In</button>
+    <button class="btn btn-ghost btn-sm" id="btnLogout" onclick="doLogout()" style="display:none;border-color:rgba(255,91,106,0.3);color:var(--red)">⏻ Sign Out</button>
   </div>
 </aside>
 
@@ -1105,7 +1254,11 @@ window.dispatchEvent(new Event('fbReady'));
   <div class="topbar">
     <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
     <div class="topbar-title" id="topbarTitle">Dashboard</div>
-    <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text3)" id="topbarDate"></div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div id="topbarRoleChip"></div>
+      <button id="topbarSignInBtn" onclick="openLoginPanel()" class="btn-mode-enter" style="font-size:11px;padding:5px 12px">→ Sign In</button>
+      <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text3)" id="topbarDate"></div>
+    </div>
   </div>
 
   <!-- MODE BANNER -->
@@ -1140,7 +1293,7 @@ window.dispatchEvent(new Event('fbReady'));
             <th>Waiter</th>
             <th>Joined</th>
             <th>Last Paid</th>
-            <th>Total Paid</th>
+            <th>Last Paid (Amount)</th>
             <th>Pending</th>
             <th>Advance</th>
             <th>Status</th>
@@ -1365,6 +1518,36 @@ window.dispatchEvent(new Event('fbReady'));
         5. If one of HK or Pickup clears fully before using its half-share, the leftover flows to the other.<br>
         6. If payment exceeds total dues, the remainder becomes advance (credit for next payment).<br>
         7. Last paid date is automatically updated to today.
+      </div>
+    </div>
+  </div>
+  <!-- STAFF / WAITER PERSONAL DASHBOARD -->
+  <div class="page" id="page-staff-dashboard">
+    <div id="staffDashContent"></div>
+  </div>
+
+  <!-- ADMIN: USER MANAGEMENT -->
+  <div class="page" id="page-users">
+    <div class="section-header">
+      <div>
+        <div class="section-title">User Management</div>
+        <div class="section-sub">Create and manage system users</div>
+      </div>
+      <button class="btn btn-primary" onclick="showAddUserModal()">+ Add User</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>User ID</th>
+            <th>Display Name</th>
+            <th>Role</th>
+            <th>Linked Waiter</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr></thead>
+          <tbody id="usersTableBody"></tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -1679,6 +1862,69 @@ window.dispatchEvent(new Event('fbReady'));
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modePasscodeModal')">Cancel</button>
       <button class="btn btn-primary" onclick="verifyModePasscode()">🔓 Unlock Edit Mode</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD USER MODAL -->
+<div class="modal-overlay" id="addUserModal">
+  <div class="modal" style="width:440px">
+    <div class="modal-title" id="addUserModalTitle">Add New User</div>
+
+    <div class="form-group">
+      <label>User ID <span style="color:var(--text3);font-size:10px">(login username)</span></label>
+      <input type="text" id="newUserId" placeholder="e.g. rajesh01" autocomplete="off" />
+    </div>
+    <div class="form-group" id="newUserPasscodeGroup">
+      <label>Passcode</label>
+      <input type="password" id="newUserPasscode" placeholder="Min 4 characters"
+        style="letter-spacing:3px;font-size:16px" />
+    </div>
+    <div class="form-group">
+      <label>Display Name</label>
+      <input type="text" id="newUserName" placeholder="e.g. Rajesh Kumar" />
+    </div>
+    <div class="form-group">
+      <label>Role</label>
+      <select id="newUserRole" onchange="onNewUserRoleChange()">
+        <option value="waiter">Waiter (Staff)</option>
+        <option value="staff">Staff (HK / Pickup / Wiping)</option>
+        <option value="collector">Collector / Captain</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div class="form-group" id="newUserStaffCatGroup" style="display:none">
+      <label>Staff Category</label>
+      <select id="newUserStaffCat">
+        <option value="pickup">🚗 Pickup</option>
+        <option value="hk">🧹 Housekeeping</option>
+        <option value="wp">🧽 Wiping</option>
+      </select>
+    </div>
+    <div class="form-group" id="newUserWaiterGroup">
+      <label>Link to Waiter Record <span style="color:var(--text3);font-size:10px">(optional)</span></label>
+      <select id="newUserWaiterId">
+        <option value="">— no link —</option>
+      </select>
+      <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:6px">
+        Linking shows this user their own payment data on login.
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="newUserActive">
+        <option value="true">Active</option>
+        <option value="false">Inactive</option>
+      </select>
+    </div>
+
+    <div id="addUserError" style="display:none" class="warn-banner">
+      <span>✕</span> <span id="addUserErrorMsg"></span>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('addUserModal')">Cancel</button>
+      <button class="btn btn-primary" id="addUserSaveBtn" onclick="saveUser()">Add User</button>
     </div>
   </div>
 </div>
@@ -2312,6 +2558,7 @@ function renderDashboard() {
   const totalWithdrawn = getCategoryWithdrawn('pickup') + getCategoryWithdrawn('hk') + getCategoryWithdrawn('wp');
   const totalAdvance = getTotalAdvance();
   const advanceCount = store.waiters.filter(w => (w.advance || 0) > 0).length;
+  const collectorTotal = totalAdvance + totalBalance; // advance in hand + balance available to withdraw
 
   document.getElementById('dashStats').innerHTML = `
     <div class="stat-card" style="--accent-color:var(--green)">
@@ -2340,8 +2587,10 @@ function renderDashboard() {
     </div>
     <div class="stat-card" style="--accent-color:var(--blue)">
       <div class="stat-label">Advance with Collector</div>
-      <div class="stat-value" style="color:var(--blue)">₹${totalAdvance.toLocaleString('en-IN')}</div>
-      <div class="stat-sub">${advanceCount} waiter${advanceCount !== 1 ? 's' : ''} holding advance</div>
+      <div class="stat-value" style="color:var(--blue)">₹${collectorTotal.toLocaleString('en-IN')}</div>
+      <div class="stat-sub" style="line-height:1.6">
+        Advance ₹${totalAdvance.toLocaleString('en-IN')} + Balance ₹${totalBalance.toLocaleString('en-IN')}
+      </div>
       <div class="stat-icon" style="opacity:0.3">⊕</div>
     </div>
   `;
@@ -2403,11 +2652,15 @@ function renderDashboard() {
         ? `<span class="badge badge-green">In Advance</span>`
         : `<span class="badge badge-blue">Clear</span>`;
 
+    // Find the most recent collection transaction for this waiter
+    const lastTxn = store.transactions.find(t => t.type === 'collection' && t.waiterId === w.id);
+    const lastPaidAmt = lastTxn ? `<span class="text-green">₹${(lastTxn.amount||0).toLocaleString('en-IN')}</span>` : '<span class="text-muted">—</span>';
+
     return `<tr class="waiter-row">
       <td>${w.name}</td>
       <td class="mono">${formatDate(w.joinDate)}</td>
       <td class="mono">${w.lastPaidDate ? formatDate(w.lastPaidDate) : '<span class="badge badge-red">Never</span>'}</td>
-      <td class="mono text-green">₹${(w.paid||0).toLocaleString('en-IN')}</td>
+      <td class="mono">${lastPaidAmt}</td>
       <td class="mono ${isDefaulter ? 'defaulter' : ''}">₹${pending.toLocaleString('en-IN')}</td>
       <td class="mono ${w.advance > 0 ? 'advance-val' : ''}">₹${(w.advance||0).toLocaleString('en-IN')}</td>
       <td>${statusBadge}</td>
@@ -2766,17 +3019,19 @@ function setWdAmount(n) {
 function showPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + page).classList.add('active');
+  const pageEl = document.getElementById('page-' + page);
+  if (pageEl) pageEl.classList.add('active');
 
   const labels = {
     dashboard: 'Dashboard', waiters: 'Waiters', collection: 'Collection',
-    withdrawal: 'Withdrawal', history: 'History', rules: 'Rules'
+    withdrawal: 'Withdrawal', history: 'History', rules: 'Rules',
+    'staff-dashboard': 'My Dashboard', users: 'User Management'
   };
   document.getElementById('topbarTitle').textContent = labels[page] || page;
 
-  document.querySelectorAll('.nav-item').forEach(n => {
-    if (n.textContent.trim().toLowerCase().includes(page)) n.classList.add('active');
-  });
+  // Highlight matching nav item by id convention: nav-{page}
+  const navEl = document.getElementById('nav-' + page);
+  if (navEl) navEl.classList.add('active');
 
   closeSidebar();
 
@@ -3437,6 +3692,474 @@ if (window._fbReady) {
 } else {
   window.addEventListener('fbReady', () => init());
 }
+
+// ═══════════════════════════════════════════════
+//  AUTH & ROLE MANAGEMENT SYSTEM
+//  (Layered on top — does NOT touch existing logic)
+// ═══════════════════════════════════════════════
+
+let _authUsers   = [];
+let _currentUser = null;
+
+const ROLE_LABELS = {
+  admin:     '⚙ Admin',
+  collector: '◎ Collector',
+  waiter:    '◉ Waiter',
+  staff:     '◉ Staff',
+};
+
+// ── Firebase user persistence ──
+async function saveUsers() {
+  try { await window._fbSaveUsers(_authUsers); }
+  catch(e) { console.error('User save error:', e); showToast('⚠ User save failed', 'warning'); }
+}
+
+async function loadUsers() {
+  try {
+    const loaded = await window._fbLoadUsers();
+    if (loaded && loaded.length) {
+      _authUsers = loaded;
+    } else {
+      _authUsers = [{ userId:'admin', passcode:'1234', name:'Administrator', role:'admin', active:true, waiterId:null }];
+      await saveUsers();
+    }
+  } catch(e) {
+    _authUsers = [{ userId:'admin', passcode:'1234', name:'Administrator', role:'admin', active:true, waiterId:null }];
+  }
+}
+
+// ── Login panel open/close ──
+function openLoginPanel() {
+  document.getElementById('loginUserId').value   = '';
+  document.getElementById('loginPasscode').value = '';
+  document.getElementById('loginError').style.display = 'none';
+  document.getElementById('loginPasscode').type = 'password';
+  document.getElementById('loginVisBtn').textContent = '👁';
+  document.getElementById('loginScreen').classList.add('visible');
+  closeSidebar();
+  setTimeout(() => document.getElementById('loginUserId').focus(), 100);
+}
+
+function closeLoginPanel() {
+  document.getElementById('loginScreen').classList.remove('visible');
+}
+
+// ── Login ──
+function toggleLoginVis() {
+  const inp = document.getElementById('loginPasscode');
+  const btn = document.getElementById('loginVisBtn');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  btn.textContent = inp.type === 'password' ? '👁' : '🙈';
+}
+
+function attemptLogin() {
+  const userId   = document.getElementById('loginUserId').value.trim();
+  const passcode = document.getElementById('loginPasscode').value;
+  const errEl    = document.getElementById('loginError');
+  const errMsg   = document.getElementById('loginErrorMsg');
+  errEl.style.display = 'none';
+
+  if (!userId || !passcode) {
+    errMsg.textContent = 'Please enter both User ID and Passcode.';
+    errEl.style.display = 'flex'; return;
+  }
+  const user = _authUsers.find(u => u.userId === userId && u.passcode === passcode);
+  if (!user) {
+    errMsg.textContent = 'Invalid User ID or Passcode.';
+    errEl.style.display = 'flex';
+    document.getElementById('loginPasscode').value = ''; return;
+  }
+  if (!user.active) {
+    errMsg.textContent = 'This account is deactivated. Contact an Admin.';
+    errEl.style.display = 'flex'; return;
+  }
+  _currentUser = user;
+  closeLoginPanel();
+  applyRoleUI();
+  showToast('Welcome, ' + user.name + '!', 'success');
+}
+
+// ── Apply guest state (no login) ──
+function applyGuestUI() {
+  _currentUser = null;
+  _isEditMode  = false;
+
+  document.getElementById('topbarRoleChip').innerHTML = '';
+  const signInBtn = document.getElementById('topbarSignInBtn');
+  if (signInBtn) signInBtn.style.display = '';
+
+  document.getElementById('sidebarUserInfo').style.display = 'none';
+  document.getElementById('btnLogout').style.display   = 'none';
+  document.getElementById('btnSignIn').style.display   = '';
+  document.getElementById('sidebarRoleChip').innerHTML = '';
+
+  ['btnExportCsv','btnImportCsv','btnChangePasscode'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+
+  // Nav: only Dashboard for guest
+  const el = document.getElementById('nav-dashboard'); if (el) el.style.display = '';
+  ['nav-staff-dashboard','nav-waiters','nav-collection',
+   'nav-withdrawal','nav-history','nav-rules','nav-users'].forEach(id => {
+    const e = document.getElementById(id); if (e) e.style.display = 'none';
+  });
+
+  document.getElementById('modeBanner').style.display = 'none';
+
+  renderAll();
+  showPage('dashboard');
+}
+
+function doLogout() {
+  applyGuestUI();
+  showToast('Signed out — viewing as guest', 'info');
+}
+
+// ── Role UI ──
+function applyRoleUI() {
+  if (!_currentUser) { applyGuestUI(); return; }
+  const role = _currentUser.role;
+
+  const chipHtml = '<span class="role-chip ' + role + '">' + (ROLE_LABELS[role] || role) + '</span>';
+  document.getElementById('topbarRoleChip').innerHTML    = chipHtml;
+  document.getElementById('sidebarRoleChip').innerHTML   = chipHtml;
+  document.getElementById('sidebarUserName').textContent = _currentUser.name;
+  document.getElementById('sidebarUserInfo').style.display = 'block';
+  document.getElementById('btnLogout').style.display = '';
+  document.getElementById('btnSignIn').style.display = 'none';
+
+  const signInBtn = document.getElementById('topbarSignInBtn');
+  if (signInBtn) signInBtn.style.display = 'none';
+
+  ['nav-dashboard','nav-staff-dashboard','nav-waiters','nav-collection',
+   'nav-withdrawal','nav-history','nav-rules','nav-users'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.style.display = 'none';
+  });
+  ['btnExportCsv','btnImportCsv','btnChangePasscode'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+
+  if (role === 'admin') {
+    ['nav-dashboard','nav-waiters','nav-collection','nav-withdrawal',
+     'nav-history','nav-rules','nav-users'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = '';
+    });
+    ['btnExportCsv','btnImportCsv','btnChangePasscode'].forEach(id => {
+      document.getElementById(id).style.display = '';
+    });
+    document.getElementById('modeBanner').style.display = '';
+    _isEditMode = false;
+    renderAll();
+    applyModeUI();
+    showPage('dashboard');
+
+  } else if (role === 'collector') {
+    ['nav-dashboard','nav-collection','nav-withdrawal','nav-history'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = '';
+    });
+    document.getElementById('btnExportCsv').style.display = '';
+    document.getElementById('modeBanner').style.display   = 'none';
+    _isEditMode = true;
+    renderAll();
+    showPage('dashboard');
+
+  } else {
+    const navSD = document.getElementById('nav-staff-dashboard');
+    if (navSD) navSD.style.display = '';
+    document.getElementById('modeBanner').style.display = 'none';
+    _isEditMode = false;
+    renderAll();
+    renderStaffDashboard();
+    showPage('staff-dashboard');
+  }
+}
+
+// ── Hook renderAll ──
+const _origRenderAll = renderAll;
+renderAll = function() {
+  _origRenderAll.apply(this, arguments);
+  if (!_currentUser) return;
+  if (document.getElementById('page-users')?.classList.contains('active'))           renderUsersTable();
+  if (document.getElementById('page-staff-dashboard')?.classList.contains('active')) renderStaffDashboard();
+};
+
+// ── Hook showPage ──
+const _origShowPage = showPage;
+showPage = function(page) {
+  _origShowPage.apply(this, arguments);
+  if (page === 'users')           renderUsersTable();
+  if (page === 'staff-dashboard') renderStaffDashboard();
+};
+
+// ── Extend init — guest by default, no forced login ──
+const _origInit = init;
+init = async function() {
+  await loadUsers();
+  await _origInit.apply(this, arguments);
+  applyGuestUI();
+};
+
+// ═══════════════════════════════════════════════
+//  USER MANAGEMENT FUNCTIONS
+// ═══════════════════════════════════════════════
+
+let _editingUserId = null; // null = adding new, string = editing existing
+
+function renderUsersTable() {
+  const tbody = document.getElementById('usersTableBody');
+  if (!tbody) return;
+
+  if (!_authUsers.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text3)">No users found.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = _authUsers.map(u => {
+    const roleLabel = ROLE_LABELS[u.role] || u.role;
+    const roleClass = u.role;
+    const linkedWaiter = u.waiterId ? (store.waiters.find(w => w.id === u.waiterId)?.name || u.waiterId) : '—';
+    const statusBadge = u.active
+      ? `<span class="badge badge-green" style="background:var(--green-dim);color:var(--green);border:1px solid rgba(34,211,165,0.3);padding:2px 8px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace">Active</span>`
+      : `<span class="badge badge-red" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,91,106,0.3);padding:2px 8px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace">Inactive</span>`;
+    const isSelf = _currentUser && _currentUser.userId === u.userId;
+    return `
+      <tr>
+        <td style="font-family:'DM Mono',monospace">${u.userId}</td>
+        <td>${u.name}</td>
+        <td><span class="role-chip ${roleClass}">${roleLabel}</span></td>
+        <td style="color:var(--text2)">${linkedWaiter}</td>
+        <td>${statusBadge}</td>
+        <td>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" onclick="openEditUserModal('${u.userId}')">✎ Edit</button>
+            ${isSelf ? '' : `<button class="btn btn-danger btn-sm" onclick="deleteAuthUser('${u.userId}')">✕</button>`}
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function showAddUserModal() {
+  _editingUserId = null;
+  document.getElementById('addUserModalTitle').textContent = 'Add New User';
+  document.getElementById('addUserSaveBtn').textContent = 'Add User';
+  document.getElementById('newUserId').value = '';
+  document.getElementById('newUserId').disabled = false;
+  document.getElementById('newUserPasscode').value = '';
+  document.getElementById('newUserName').value = '';
+  document.getElementById('newUserRole').value = 'waiter';
+  document.getElementById('newUserActive').value = 'true';
+  document.getElementById('addUserError').style.display = 'none';
+  document.getElementById('newUserPasscodeGroup').style.display = '';
+
+  // Populate waiter select
+  _populateWaiterSelect();
+  onNewUserRoleChange();
+  openModal('addUserModal');
+}
+
+function openEditUserModal(userId) {
+  const user = _authUsers.find(u => u.userId === userId);
+  if (!user) return;
+  _editingUserId = userId;
+
+  document.getElementById('addUserModalTitle').textContent = 'Edit User';
+  document.getElementById('addUserSaveBtn').textContent = 'Save Changes';
+  document.getElementById('newUserId').value = user.userId;
+  document.getElementById('newUserId').disabled = true; // can't change userId
+  document.getElementById('newUserPasscode').value = '';
+  document.getElementById('newUserName').value = user.name;
+  document.getElementById('newUserRole').value = user.role;
+  document.getElementById('newUserActive').value = user.active ? 'true' : 'false';
+  document.getElementById('addUserError').style.display = 'none';
+  // Hide passcode field for edits (leave blank = keep existing)
+  document.getElementById('newUserPasscodeGroup').querySelector('label').textContent = 'New Passcode (leave blank to keep current)';
+
+  _populateWaiterSelect(user.waiterId);
+  onNewUserRoleChange();
+  openModal('addUserModal');
+}
+
+function _populateWaiterSelect(selectedId) {
+  const sel = document.getElementById('newUserWaiterId');
+  sel.innerHTML = '<option value="">— no link —</option>' +
+    store.waiters.map(w => `<option value="${w.id}" ${w.id === selectedId ? 'selected' : ''}>${w.name}</option>`).join('');
+}
+
+function onNewUserRoleChange() {
+  const role = document.getElementById('newUserRole').value;
+  const waiterGroup = document.getElementById('newUserWaiterGroup');
+  const staffCatGroup = document.getElementById('newUserStaffCatGroup');
+  if (waiterGroup) waiterGroup.style.display = (role === 'waiter') ? '' : 'none';
+  if (staffCatGroup) staffCatGroup.style.display = (role === 'staff') ? '' : 'none';
+}
+
+function saveUser() {
+  const userId   = document.getElementById('newUserId').value.trim();
+  const passcode = document.getElementById('newUserPasscode').value;
+  const name     = document.getElementById('newUserName').value.trim();
+  const role     = document.getElementById('newUserRole').value;
+  const active   = document.getElementById('newUserActive').value === 'true';
+  const waiterId = document.getElementById('newUserWaiterId').value || null;
+  const errEl    = document.getElementById('addUserError');
+  const errMsg   = document.getElementById('addUserErrorMsg');
+
+  const showErr = (msg) => { errMsg.textContent = msg; errEl.style.display = 'flex'; };
+  errEl.style.display = 'none';
+
+  if (!userId)  return showErr('User ID is required.');
+  if (!name)    return showErr('Display name is required.');
+
+  if (_editingUserId === null) {
+    // ── Adding new user ──
+    if (_authUsers.find(u => u.userId === userId)) return showErr('User ID already exists. Choose a different one.');
+    if (!passcode)          return showErr('Passcode is required for new users.');
+    if (passcode.length < 4) return showErr('Passcode must be at least 4 characters.');
+
+    const newUser = { userId, passcode, name, role, active, waiterId };
+    _authUsers.push(newUser);
+    showToast('User added: ' + name, 'success');
+  } else {
+    // ── Editing existing user ──
+    const idx = _authUsers.findIndex(u => u.userId === _editingUserId);
+    if (idx === -1) return showErr('User not found.');
+    const existing = _authUsers[idx];
+
+    // Only update passcode if a new one was entered
+    const updatedPasscode = passcode.length >= 4 ? passcode : (passcode.length > 0 ? null : existing.passcode);
+    if (passcode.length > 0 && passcode.length < 4) return showErr('New passcode must be at least 4 characters.');
+
+    _authUsers[idx] = { ...existing, name, role, active, waiterId, passcode: updatedPasscode || existing.passcode };
+
+    // If editing the currently logged-in user, refresh their session data
+    if (_currentUser && _currentUser.userId === _editingUserId) {
+      _currentUser = { ..._authUsers[idx] };
+    }
+    showToast('User updated: ' + name, 'success');
+  }
+
+  saveUsers();
+  closeModal('addUserModal');
+  renderUsersTable();
+}
+
+function deleteAuthUser(userId) {
+  if (_currentUser && _currentUser.userId === userId) {
+    showToast('⚠ You cannot delete your own account.', 'warning');
+    return;
+  }
+  const user = _authUsers.find(u => u.userId === userId);
+  if (!user) return;
+  if (!confirm(`Remove user "${user.name}" (${user.userId})? This cannot be undone.`)) return;
+
+  _authUsers = _authUsers.filter(u => u.userId !== userId);
+  saveUsers();
+  renderUsersTable();
+  showToast('User removed: ' + user.name, 'success');
+}
+
+// ═══════════════════════════════════════════════
+//  STAFF PERSONAL DASHBOARD
+// ═══════════════════════════════════════════════
+function renderStaffDashboard() {
+  const el = document.getElementById('staffDashContent');
+  if (!el) return;
+
+  if (!_currentUser || (_currentUser.role !== 'waiter' && _currentUser.role !== 'staff')) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">◉</div><div class="empty-text">Not available for your role.</div></div>`;
+    return;
+  }
+
+  // Find linked waiter
+  const waiter = _currentUser.waiterId ? store.waiters.find(w => w.id === _currentUser.waiterId) : null;
+
+  if (!waiter) {
+    el.innerHTML = `
+      <div class="card">
+        <div class="empty-state">
+          <div class="empty-icon">◉</div>
+          <div class="empty-text" style="max-width:300px;margin:0 auto">
+            No waiter record linked to your account.<br>
+            <span style="font-size:11px;font-family:'DM Mono',monospace;margin-top:8px;display:block">Ask an admin to link your account to your waiter record.</span>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const todayStr = today();
+  const neverPaid = !waiter.lastPaidDate;
+  const fromDate = waiter.lastPaidDate || waiter.joinDate;
+  const newDues = calculateMultiDayDues(fromDate, todayStr, neverPaid);
+  const totalPendingWp = (waiter.pending_wp || 0) + newDues.wp;
+  const totalPendingHk = (waiter.pending_hk || 0) + newDues.hk;
+  const totalPendingPickup = (waiter.pending_pickup || 0) + newDues.pickup;
+  const totalPending = totalPendingWp + totalPendingHk + totalPendingPickup;
+
+  el.innerHTML = `
+    <div class="section-header">
+      <div>
+        <div class="section-title">My Dashboard</div>
+        <div class="section-sub">Your payment summary — ${waiter.name}</div>
+      </div>
+    </div>
+    <div class="grid g3 mb-4">
+      <div class="stat-card" style="--accent-color:var(--pickup)">
+        <div class="stat-label">Pickup Pending</div>
+        <div class="stat-value ${totalPendingPickup > 0 ? 'text-red' : 'text-green'}">₹${totalPendingPickup.toLocaleString('en-IN')}</div>
+        <div class="stat-icon">🚗</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--hk)">
+        <div class="stat-label">Housekeeping Pending</div>
+        <div class="stat-value ${totalPendingHk > 0 ? 'text-red' : 'text-green'}">₹${totalPendingHk.toLocaleString('en-IN')}</div>
+        <div class="stat-icon">🧹</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--wp)">
+        <div class="stat-label">Wiping Pending</div>
+        <div class="stat-value ${totalPendingWp > 0 ? 'text-red' : 'text-green'}">₹${totalPendingWp.toLocaleString('en-IN')}</div>
+        <div class="stat-icon">🧽</div>
+      </div>
+    </div>
+    <div class="grid g3">
+      <div class="stat-card" style="--accent-color:var(--red)">
+        <div class="stat-label">Total Pending</div>
+        <div class="stat-value ${totalPending > 0 ? 'text-red' : 'text-green'}">₹${totalPending.toLocaleString('en-IN')}</div>
+        <div class="stat-icon">⊟</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--green)">
+        <div class="stat-label">Total Paid</div>
+        <div class="stat-value text-green">₹${(waiter.paid || 0).toLocaleString('en-IN')}</div>
+        <div class="stat-icon">✓</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--accent)">
+        <div class="stat-label">Advance Balance</div>
+        <div class="stat-value ${(waiter.advance||0) > 0 ? 'text-green' : ''}">₹${(waiter.advance || 0).toLocaleString('en-IN')}</div>
+        <div class="stat-icon">◈</div>
+      </div>
+    </div>
+    <div class="card mt-6">
+      <div class="card-title">Payment History</div>
+      <div class="table-wrap">
+        ${(() => {
+          const txns = store.transactions.filter(t => t.type === 'collection' && t.waiterId === waiter.id);
+          if (!txns.length) return `<div class="empty-state"><div class="empty-icon">⊟</div><div class="empty-text">No payments recorded yet.</div></div>`;
+          return `<table>
+            <thead><tr><th>Date</th><th>Amount</th><th>Days Covered</th><th>Note</th></tr></thead>
+            <tbody>
+              ${txns.map(t => `
+                <tr>
+                  <td class="mono">${formatDateTime(t.date)}</td>
+                  <td class="text-green font-mono">+₹${(t.amount||0).toLocaleString('en-IN')}</td>
+                  <td>${t.detail?.days || 0} day(s)</td>
+                  <td style="color:var(--text3)">${t.note || '—'}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>`;
+        })()}
+      </div>
+    </div>`;
+}
+
 </script>
 </body>
 </html>
