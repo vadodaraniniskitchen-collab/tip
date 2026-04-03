@@ -1135,6 +1135,191 @@ window.dispatchEvent(new Event('fbReady'));
     display: inline-block;
   }
 
+
+  /* ─── ATTENDANCE GRID ─── */
+  .att-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 600px;
+  }
+
+  .att-table th {
+    background: var(--surface2);
+    padding: 12px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .att-table th.att-name-col { text-align: left; min-width: 140px; padding-left: 20px; }
+
+  .att-table td {
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--border);
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .att-table td.att-name-cell {
+    text-align: left;
+    padding-left: 20px;
+    font-weight: 500;
+    font-size: 13px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .att-table tbody tr:hover { background: var(--surface2); }
+
+  .att-table th.att-today-col {
+    background: rgba(108,99,255,0.12);
+    color: var(--accent2);
+    border-bottom-color: rgba(108,99,255,0.4);
+  }
+
+  .att-table td.att-today-cell {
+    background: rgba(108,99,255,0.05);
+  }
+
+  /* Toggle pill */
+  .att-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 30px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.18s ease;
+    user-select: none;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .att-toggle::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: white;
+    opacity: 0;
+    transition: opacity 0.1s;
+    border-radius: inherit;
+  }
+
+  .att-toggle:active::after { opacity: 0.12; }
+
+  .att-toggle.att-present {
+    background: rgba(34,211,165,0.12);
+    color: var(--green);
+    border: 1px solid rgba(34,211,165,0.3);
+  }
+
+  .att-toggle.att-present:hover {
+    background: rgba(34,211,165,0.22);
+    transform: scale(1.06);
+  }
+
+  .att-toggle.att-absent {
+    background: rgba(255,91,106,0.15);
+    color: var(--red);
+    border: 1px solid rgba(255,91,106,0.4);
+    box-shadow: 0 0 0 2px rgba(255,91,106,0.15);
+  }
+
+  .att-toggle.att-absent:hover {
+    background: rgba(255,91,106,0.28);
+    transform: scale(1.06);
+  }
+
+  .att-toggle.att-future {
+    background: var(--surface3);
+    color: var(--text3);
+    border: 1px solid var(--border);
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .att-toggle.att-readonly {
+    cursor: default;
+    pointer-events: none;
+  }
+
+  /* Day header date pill */
+  .att-day-date {
+    display: block;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 2px;
+    color: var(--text);
+  }
+
+  .att-day-name {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.6px;
+    color: var(--text3);
+    text-transform: uppercase;
+  }
+
+  /* Legend */
+  .att-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+
+  .att-present-legend {
+    background: rgba(34,211,165,0.1);
+    color: var(--green);
+    border: 1px solid rgba(34,211,165,0.25);
+  }
+
+  .att-absent-legend {
+    background: rgba(255,91,106,0.1);
+    color: var(--red);
+    border: 1px solid rgba(255,91,106,0.25);
+  }
+
+  /* Waiter absent highlight in waiter table */
+  .att-absent-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255,91,106,0.12);
+    color: var(--red);
+    border: 1px solid rgba(255,91,106,0.3);
+    border-radius: 20px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  /* absent row dimming in dashboard */
+  .waiter-row.att-absent-today { opacity: 0.55; }
+  .waiter-row.att-absent-today td:first-child::after {
+    content: ' (absent today)';
+    font-size: 11px;
+    color: var(--red);
+    font-family: 'DM Mono', monospace;
+  }
+
   /* nav items hidden per role */
   .nav-item[data-role-hide] { display: none; }
 </style>
@@ -1233,6 +1418,9 @@ window.dispatchEvent(new Event('fbReady'));
     </div>
     <div class="nav-item" onclick="showPage('users')" id="nav-users" style="display:none">
       <span class="icon">⊞</span> Users
+    </div>
+    <div class="nav-item" onclick="showPage('attendance')" id="nav-attendance" style="display:none">
+      <span class="icon">📅</span> Attendance
     </div>
   </nav>
   <div class="sidebar-footer">
@@ -1549,6 +1737,39 @@ window.dispatchEvent(new Event('fbReady'));
           <tbody id="usersTableBody"></tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <!-- ADMIN: ATTENDANCE -->
+  <div class="page" id="page-attendance">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Attendance</div>
+        <div class="section-sub">Mark absent staff — absent days are excluded from tip calculations</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="attendanceChangeWeek(-1)" title="Previous week">‹ Prev</button>
+        <span id="attWeekLabel" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text2);min-width:180px;text-align:center"></span>
+        <button class="btn btn-ghost btn-sm" onclick="attendanceChangeWeek(1)" title="Next week">Next ›</button>
+        <button class="btn btn-ghost btn-sm" onclick="attendanceGoToday()" style="border-color:rgba(108,99,255,0.3);color:var(--accent2)">Today</button>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div style="display:flex;gap:16px;align-items:center;margin-bottom:20px;flex-wrap:wrap">
+      <span style="font-size:12px;color:var(--text3);font-family:'DM Mono',monospace">LEGEND:</span>
+      <span class="att-legend att-present-legend">✓ Present — tips apply</span>
+      <span class="att-legend att-absent-legend">✕ Absent — tips waived</span>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <div id="attGrid" style="overflow-x:auto"></div>
+    </div>
+
+    <!-- Monthly summary card -->
+    <div class="card mt-6" id="attSummaryCard" style="display:none">
+      <div class="card-title">Absence Summary — This Week</div>
+      <div id="attSummaryBody"></div>
     </div>
   </div>
 
@@ -1943,7 +2164,8 @@ let store = {
     hk: 0,
     wp: 0
   },
-  deleted_waiters: [] // archived snapshots of deleted waiters
+  deleted_waiters: [], // archived snapshots of deleted waiters
+  attendance: {}       // { "YYYY-MM-DD": { waiterId: true } } — true means absent
 };
 
 let deleteTargetId = null;
@@ -1974,7 +2196,7 @@ async function load() {
     if (data) {
       // Strip internal Firestore timestamp before merging
       const { _savedAt, ...rest } = data;
-      store = { withdrawals: { pickup: 0, hk: 0, wp: 0 }, deleted_waiters: [], ...rest };
+      store = { withdrawals: { pickup: 0, hk: 0, wp: 0 }, deleted_waiters: [], attendance: {}, ...rest };
     }
   } catch (e) {
     console.error('Firestore load error:', e);
@@ -2043,12 +2265,19 @@ function getDailyDues(dateStr) {
   };
 }
 
-function calculateMultiDayDues(fromDate, toDate, neverPaid = false) {
+function calculateMultiDayDues(fromDate, toDate, neverPaid = false, waiterId = null) {
   // neverPaid=true  → fromDate is joinDate, include it (waiter owes from day 1)
   // neverPaid=false → fromDate is lastPaidDate, exclude it (already settled)
+  // waiterId        → if supplied, absent days for that waiter are skipped (zero dues)
   const dates = daysBetween(fromDate, toDate, neverPaid);
-  let totals = { pickup: 0, hk: 0, wp: 0, days: dates.length };
+  let totals = { pickup: 0, hk: 0, wp: 0, days: dates.length, absentDays: 0 };
+  const att = (store.attendance || {});
   for (const d of dates) {
+    // Skip dues for absent days
+    if (waiterId && att[d] && att[d][waiterId]) {
+      totals.absentDays++;
+      continue;
+    }
     const dues = getDailyDues(d);
     totals.pickup += dues.pickup;
     totals.hk     += dues.hk;
@@ -2068,7 +2297,7 @@ function simulatePayment(waiter, amount) {
   // Calculate dues for missed days
   // neverPaid=true → joinDate itself is included (day 1 counts)
   // neverPaid=false → lastPaidDate excluded (already settled that day)
-  const newDues = calculateMultiDayDues(fromDate, todayStr, neverPaid);
+  const newDues = calculateMultiDayDues(fromDate, todayStr, neverPaid, waiter.id);
 
   // Total pending per category
   const totalPendingWp = (waiter.pending_wp || 0) + newDues.wp;
@@ -2142,7 +2371,7 @@ function addPayment() {
   const note = document.getElementById('collNote').value.trim();
 
   if (!waiterId) { showToast('Select a waiter', 'error'); return; }
-  if (amount < 0) { showToast('Amount cannot be negative', 'error'); return; }
+  if (amount <= 0) { showToast('Enter a valid amount greater than ₹0', 'error'); return; }
 
   const waiter = store.waiters.find(w => w.id === waiterId);
   if (!waiter) { showToast('Waiter not found', 'error'); return; }
@@ -2641,23 +2870,27 @@ function renderDashboard() {
     return pb - pa;
   });
 
+  const todayStrDash = today();
   let defaulters = 0;
   const rows = sorted.map(w => {
     const pending = (w.pending_pickup||0)+(w.pending_hk||0)+(w.pending_wp||0);
     const isDefaulter = pending > 100;
     if (isDefaulter) defaulters++;
-    const statusBadge = isDefaulter
-      ? `<span class="badge badge-red">High Pending</span>`
-      : w.advance > 0
-        ? `<span class="badge badge-green">In Advance</span>`
-        : `<span class="badge badge-blue">Clear</span>`;
+    const absentTodayDash = isWaiterAbsent(w.id, todayStrDash);
+    const statusBadge = absentTodayDash
+      ? `<span class="badge" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,91,106,0.3)">Absent Today</span>`
+      : isDefaulter
+        ? `<span class="badge badge-red">High Pending</span>`
+        : w.advance > 0
+          ? `<span class="badge badge-green">In Advance</span>`
+          : `<span class="badge badge-blue">Clear</span>`;
 
     // Find the most recent collection transaction for this waiter
     const lastTxn = store.transactions.find(t => t.type === 'collection' && t.waiterId === w.id);
     const lastPaidAmt = lastTxn ? `<span class="text-green">₹${(lastTxn.amount||0).toLocaleString('en-IN')}</span>` : '<span class="text-muted">—</span>';
 
-    return `<tr class="waiter-row">
-      <td>${w.name}</td>
+    return `<tr class="waiter-row${absentTodayDash ? ' att-absent-today' : ''}">
+      <td>${w.name}${absentTodayDash ? '<span class=\'att-absent-badge\'>✕ Absent</span>' : ''}</td>
       <td class="mono">${formatDate(w.joinDate)}</td>
       <td class="mono">${w.lastPaidDate ? formatDate(w.lastPaidDate) : '<span class="badge badge-red">Never</span>'}</td>
       <td class="mono">${lastPaidAmt}</td>
@@ -2677,12 +2910,14 @@ function renderWaiters() {
     body.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">◉</div><div class="empty-text">No waiters yet. Add one to get started.</div></div></td></tr>`;
     return;
   }
+  const todayForAtt = today();
   body.innerHTML = store.waiters.map((w, i) => {
     const pending = (w.pending_pickup||0)+(w.pending_hk||0)+(w.pending_wp||0);
     const isDefaulter = pending > 100;
-    return `<tr class="waiter-row">
+    const absentToday = isWaiterAbsent(w.id, todayForAtt);
+    return `<tr class="waiter-row${absentToday ? ' att-absent-today' : ''}">
       <td class="mono text-muted">${i + 1}</td>
-      <td>${w.name}</td>
+      <td>${w.name}${absentToday ? '<span class=\'att-absent-badge\'>✕ Absent Today</span>' : ''}</td>
       <td class="mono">${formatDate(w.joinDate)}</td>
       <td class="mono">${w.lastPaidDate ? formatDate(w.lastPaidDate) : '<span class="badge badge-red">Never</span>'}</td>
       <td class="mono text-green">₹${(w.paid||0).toLocaleString('en-IN')}</td>
@@ -2724,15 +2959,22 @@ function updateCollectionPreview() {
   if (!waiter) return;
 
   const sim = simulatePayment(waiter, amount);
+  const todayStrColl = today();
+  const waiterAbsentToday = isWaiterAbsent(waiter.id, todayStrColl);
 
   const noPayment = amount === 0;
 
   preview.innerHTML = `
     <div class="card">
+      ${waiterAbsentToday ? `
+      <div class="warn-banner" style="background:rgba(255,91,106,0.08);border-color:rgba(255,91,106,0.3);color:var(--red);margin-bottom:14px">
+        <span>✕</span>
+        <span><strong>${waiter.name}</strong> is marked <strong>Absent Today</strong> — no tip contribution is due for today.</span>
+      </div>` : ''}
       <div class="info-banner">
         <span>◈</span>
         <span>Auto-calculated for <strong>${sim.days} day${sim.days !== 1 ? 's' : ''}</strong> 
-        (${formatDate(sim.fromDate)} → ${formatDate(sim.toDate)})</span>
+        (${formatDate(sim.fromDate)} → ${formatDate(sim.toDate)})${sim.absentDays > 0 ? ` · <span style="color:var(--red)">${sim.absentDays} absent day${sim.absentDays > 1 ? 's' : ''} excluded</span>` : ''}</span>
       </div>
 
       <div class="preview-title">New Dues This Period</div>
@@ -3025,7 +3267,7 @@ function showPage(page) {
   const labels = {
     dashboard: 'Dashboard', waiters: 'Waiters', collection: 'Collection',
     withdrawal: 'Withdrawal', history: 'History', rules: 'Rules',
-    'staff-dashboard': 'My Dashboard', users: 'User Management'
+    'staff-dashboard': 'My Dashboard', users: 'User Management', attendance: 'Attendance'
   };
   document.getElementById('topbarTitle').textContent = labels[page] || page;
 
@@ -3686,6 +3928,198 @@ showAddWaiterModal = function() {
   _origShowAddWaiterModal.apply(this, arguments);
 };
 
+
+// ═══════════════════════════════════════════════
+//  ATTENDANCE SYSTEM
+// ═══════════════════════════════════════════════
+
+let _attWeekOffset = 0; // 0 = current week, -1 = last week, etc.
+
+// ── Helpers ──
+function attWeekStart(offset) {
+  // Returns Monday of the week at (today + offset weeks)
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  // offset in weeks
+  d.setDate(d.getDate() + offset * 7);
+  // go back to Monday
+  const dow = d.getDay(); // 0=Sun
+  const diff = (dow === 0) ? -6 : 1 - dow;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+function attDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dy = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dy}`;
+}
+
+function isWaiterAbsent(waiterId, dateStr) {
+  const att = store.attendance || {};
+  return !!(att[dateStr] && att[dateStr][waiterId]);
+}
+
+function isAdminLoggedIn() {
+  return _currentUser && _currentUser.role === 'admin';
+}
+
+// ── Toggle a waiter's absence for a date (admin only) ──
+function attToggle(waiterId, dateStr) {
+  if (!isAdminLoggedIn()) { showToast('⚠ Only Admins can update attendance', 'warning'); return; }
+  const todayStr = today();
+  if (dateStr > todayStr) { showToast('Cannot mark attendance for future dates', 'warning'); return; }
+
+  store.attendance = store.attendance || {};
+  store.attendance[dateStr] = store.attendance[dateStr] || {};
+
+  const currentlyAbsent = !!store.attendance[dateStr][waiterId];
+  if (currentlyAbsent) {
+    delete store.attendance[dateStr][waiterId];
+    if (Object.keys(store.attendance[dateStr]).length === 0) delete store.attendance[dateStr];
+    showToast('Marked Present — tips will apply', 'success');
+  } else {
+    store.attendance[dateStr][waiterId] = true;
+    showToast('Marked Absent — tips waived for this day', 'info');
+  }
+
+  save();
+  renderAttendance();
+  // Refresh open pages that use dues calculations
+  if (document.getElementById('page-dashboard')?.classList.contains('active')) renderDashboard();
+  if (document.getElementById('page-collection')?.classList.contains('active')) { renderCollectionWaiters(); updateCollectionPreview(); }
+}
+
+function attendanceChangeWeek(delta) {
+  _attWeekOffset += delta;
+  renderAttendance();
+}
+
+function attendanceGoToday() {
+  _attWeekOffset = 0;
+  renderAttendance();
+}
+
+// ── Main render ──
+function renderAttendance() {
+  const grid = document.getElementById('attGrid');
+  if (!grid) return;
+
+  const todayStr = today();
+  const weekStart = attWeekStart(_attWeekOffset);
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + i);
+    days.push({ date: attDateStr(d), d });
+  }
+
+  // Week label
+  const fmt = (d) => d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  const weekLabel = document.getElementById('attWeekLabel');
+  if (weekLabel) {
+    const isCurrentWeek = _attWeekOffset === 0;
+    weekLabel.textContent = `${fmt(days[0].d)} — ${fmt(days[6].d)}` + (isCurrentWeek ? '  (This Week)' : '');
+  }
+
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const isAdmin = isAdminLoggedIn();
+  const waiters = store.waiters;
+
+  if (!waiters.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">◉</div><div class="empty-text">No waiters yet. Add a waiter first.</div></div>`;
+    document.getElementById('attSummaryCard').style.display = 'none';
+    return;
+  }
+
+  // Build table header
+  let html = `<table class="att-table"><thead><tr>
+    <th class="att-name-col">Staff Member</th>`;
+  days.forEach(({ date, d }, i) => {
+    const isToday = date === todayStr;
+    const isFuture = date > todayStr;
+    const dayNum = d.getDate();
+    const mon = d.toLocaleDateString('en-IN', { month: 'short' });
+    html += `<th class="${isToday ? 'att-today-col' : ''}" style="min-width:86px">
+      <span class="att-day-date" style="${isToday ? 'color:var(--accent2)' : isFuture ? 'color:var(--text3)' : ''}">${dayNum} ${mon}</span>
+      <span class="att-day-name">${dayNames[i]}</span>
+    </th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  // Build rows
+  waiters.forEach(w => {
+    html += `<tr>
+      <td class="att-name-cell">${w.name}</td>`;
+    days.forEach(({ date }) => {
+      const isFuture = date > todayStr;
+      const isAbsent = isWaiterAbsent(w.id, date);
+      const isToday = date === todayStr;
+
+      let cls, label;
+      if (isFuture)      { cls = 'att-future'; label = '—'; }
+      else if (isAbsent) { cls = 'att-absent';  label = '✕ Absent'; }
+      else               { cls = 'att-present'; label = '✓ Present'; }
+
+      const clickable = !isFuture && isAdmin;
+      html += `<td class="${isToday ? 'att-today-cell' : ''}">
+        <button
+          class="att-toggle ${cls}${!clickable ? ' att-readonly' : ''}"
+          ${clickable ? `onclick="attToggle('${w.id}','${date}')"` : ''}
+          title="${isFuture ? 'Future date' : isAdmin ? 'Click to toggle' : 'View only'}"
+        >${label}</button>
+      </td>`;
+    });
+    html += `</tr>`;
+  });
+
+  html += `</tbody></table>`;
+  grid.innerHTML = html;
+
+  // Summary section
+  renderAttSummary(days, todayStr);
+}
+
+function renderAttSummary(days, todayStr) {
+  const card = document.getElementById('attSummaryCard');
+  const body = document.getElementById('attSummaryBody');
+  if (!card || !body) return;
+
+  const pastDays = days.filter(({ date }) => date <= todayStr);
+  if (!pastDays.length) { card.style.display = 'none'; return; }
+
+  const waiters = store.waiters;
+  let summaryRows = '';
+  let anyAbsences = false;
+
+  waiters.forEach(w => {
+    const absentDays = pastDays.filter(({ date }) => isWaiterAbsent(w.id, date));
+    if (!absentDays.length) return;
+    anyAbsences = true;
+    const dayNames2 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const tags = absentDays.map(({ date, d }) =>
+      `<span style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,91,106,0.3);border-radius:6px;padding:2px 8px;font-size:11px;font-family:'DM Mono',monospace;display:inline-block;margin:2px">${dayNames2[d.getDay()]} ${date}</span>`
+    ).join('');
+    summaryRows += `
+      <div style="display:flex;align-items:flex-start;gap:14px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <span style="font-weight:600;font-size:13px;min-width:130px;padding-top:4px">${w.name}</span>
+        <span style="color:var(--red);font-family:'DM Mono',monospace;font-size:12px;min-width:80px;padding-top:4px">${absentDays.length} absent day${absentDays.length > 1 ? 's' : ''}</span>
+        <div>${tags}</div>
+      </div>`;
+  });
+
+  if (!anyAbsences) {
+    body.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:16px 0">All staff present this week — no absences recorded.</div>`;
+  } else {
+    body.innerHTML = summaryRows;
+  }
+  card.style.display = '';
+}
+
+// ── Hook showPage for attendance ──
+// (This hook is additive — the auth section already wraps showPage)
+
 // Wait for the Firebase module script to finish initializing before running init()
 if (window._fbReady) {
   init();
@@ -3800,7 +4234,7 @@ function applyGuestUI() {
   // Nav: only Dashboard for guest
   const el = document.getElementById('nav-dashboard'); if (el) el.style.display = '';
   ['nav-staff-dashboard','nav-waiters','nav-collection',
-   'nav-withdrawal','nav-history','nav-rules','nav-users'].forEach(id => {
+   'nav-withdrawal','nav-history','nav-rules','nav-users','nav-attendance'].forEach(id => {
     const e = document.getElementById(id); if (e) e.style.display = 'none';
   });
 
@@ -3832,7 +4266,7 @@ function applyRoleUI() {
   if (signInBtn) signInBtn.style.display = 'none';
 
   ['nav-dashboard','nav-staff-dashboard','nav-waiters','nav-collection',
-   'nav-withdrawal','nav-history','nav-rules','nav-users'].forEach(id => {
+   'nav-withdrawal','nav-history','nav-rules','nav-users','nav-attendance'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = 'none';
   });
   ['btnExportCsv','btnImportCsv','btnChangePasscode'].forEach(id => {
@@ -3841,7 +4275,7 @@ function applyRoleUI() {
 
   if (role === 'admin') {
     ['nav-dashboard','nav-waiters','nav-collection','nav-withdrawal',
-     'nav-history','nav-rules','nav-users'].forEach(id => {
+     'nav-history','nav-rules','nav-users','nav-attendance'].forEach(id => {
       const el = document.getElementById(id); if (el) el.style.display = '';
     });
     ['btnExportCsv','btnImportCsv','btnChangePasscode'].forEach(id => {
@@ -3881,6 +4315,7 @@ renderAll = function() {
   if (!_currentUser) return;
   if (document.getElementById('page-users')?.classList.contains('active'))           renderUsersTable();
   if (document.getElementById('page-staff-dashboard')?.classList.contains('active')) renderStaffDashboard();
+  if (document.getElementById('page-attendance')?.classList.contains('active'))      renderAttendance();
 };
 
 // ── Hook showPage ──
@@ -3889,6 +4324,7 @@ showPage = function(page) {
   _origShowPage.apply(this, arguments);
   if (page === 'users')           renderUsersTable();
   if (page === 'staff-dashboard') renderStaffDashboard();
+  if (page === 'attendance')      renderAttendance();
 };
 
 // ── Extend init — guest by default, no forced login ──
@@ -3903,39 +4339,35 @@ init = async function() {
 //  USER MANAGEMENT FUNCTIONS
 // ═══════════════════════════════════════════════
 
-let _editingUserId = null; // null = adding new, string = editing existing
+let _editingUserId = null;
 
 function renderUsersTable() {
   const tbody = document.getElementById('usersTableBody');
   if (!tbody) return;
-
   if (!_authUsers.length) {
     tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text3)">No users found.</td></tr>`;
     return;
   }
-
   tbody.innerHTML = _authUsers.map(u => {
     const roleLabel = ROLE_LABELS[u.role] || u.role;
-    const roleClass = u.role;
     const linkedWaiter = u.waiterId ? (store.waiters.find(w => w.id === u.waiterId)?.name || u.waiterId) : '—';
     const statusBadge = u.active
-      ? `<span class="badge badge-green" style="background:var(--green-dim);color:var(--green);border:1px solid rgba(34,211,165,0.3);padding:2px 8px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace">Active</span>`
-      : `<span class="badge badge-red" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,91,106,0.3);padding:2px 8px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace">Inactive</span>`;
+      ? `<span style="background:var(--green-dim);color:var(--green);border:1px solid rgba(34,211,165,0.3);padding:2px 8px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace">Active</span>`
+      : `<span style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,91,106,0.3);padding:2px 8px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace">Inactive</span>`;
     const isSelf = _currentUser && _currentUser.userId === u.userId;
-    return `
-      <tr>
-        <td style="font-family:'DM Mono',monospace">${u.userId}</td>
-        <td>${u.name}</td>
-        <td><span class="role-chip ${roleClass}">${roleLabel}</span></td>
-        <td style="color:var(--text2)">${linkedWaiter}</td>
-        <td>${statusBadge}</td>
-        <td>
-          <div style="display:flex;gap:6px">
-            <button class="btn btn-ghost btn-sm" onclick="openEditUserModal('${u.userId}')">✎ Edit</button>
-            ${isSelf ? '' : `<button class="btn btn-danger btn-sm" onclick="deleteAuthUser('${u.userId}')">✕</button>`}
-          </div>
-        </td>
-      </tr>`;
+    return `<tr>
+      <td style="font-family:'DM Mono',monospace">${u.userId}</td>
+      <td>${u.name}</td>
+      <td><span class="role-chip ${u.role}">${roleLabel}</span></td>
+      <td style="color:var(--text2)">${linkedWaiter}</td>
+      <td>${statusBadge}</td>
+      <td>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="openEditUserModal('${u.userId}')">✎ Edit</button>
+          ${isSelf ? '' : `<button class="btn btn-danger btn-sm" onclick="deleteAuthUser('${u.userId}')">✕</button>`}
+        </div>
+      </td>
+    </tr>`;
   }).join('');
 }
 
@@ -3950,10 +4382,8 @@ function showAddUserModal() {
   document.getElementById('newUserRole').value = 'waiter';
   document.getElementById('newUserActive').value = 'true';
   document.getElementById('addUserError').style.display = 'none';
-  document.getElementById('newUserPasscodeGroup').style.display = '';
-
-  // Populate waiter select
-  _populateWaiterSelect();
+  document.getElementById('newUserPasscodeGroup').querySelector('label').textContent = 'Passcode';
+  _populateWaiterSelect(null);
   onNewUserRoleChange();
   openModal('addUserModal');
 }
@@ -3962,19 +4392,16 @@ function openEditUserModal(userId) {
   const user = _authUsers.find(u => u.userId === userId);
   if (!user) return;
   _editingUserId = userId;
-
   document.getElementById('addUserModalTitle').textContent = 'Edit User';
   document.getElementById('addUserSaveBtn').textContent = 'Save Changes';
   document.getElementById('newUserId').value = user.userId;
-  document.getElementById('newUserId').disabled = true; // can't change userId
+  document.getElementById('newUserId').disabled = true;
   document.getElementById('newUserPasscode').value = '';
   document.getElementById('newUserName').value = user.name;
   document.getElementById('newUserRole').value = user.role;
   document.getElementById('newUserActive').value = user.active ? 'true' : 'false';
   document.getElementById('addUserError').style.display = 'none';
-  // Hide passcode field for edits (leave blank = keep existing)
   document.getElementById('newUserPasscodeGroup').querySelector('label').textContent = 'New Passcode (leave blank to keep current)';
-
   _populateWaiterSelect(user.waiterId);
   onNewUserRoleChange();
   openModal('addUserModal');
@@ -3983,15 +4410,15 @@ function openEditUserModal(userId) {
 function _populateWaiterSelect(selectedId) {
   const sel = document.getElementById('newUserWaiterId');
   sel.innerHTML = '<option value="">— no link —</option>' +
-    store.waiters.map(w => `<option value="${w.id}" ${w.id === selectedId ? 'selected' : ''}>${w.name}</option>`).join('');
+    store.waiters.map(w => `<option value="${w.id}"${w.id === selectedId ? ' selected' : ''}>${w.name}</option>`).join('');
 }
 
 function onNewUserRoleChange() {
   const role = document.getElementById('newUserRole').value;
-  const waiterGroup = document.getElementById('newUserWaiterGroup');
+  const waiterGroup   = document.getElementById('newUserWaiterGroup');
   const staffCatGroup = document.getElementById('newUserStaffCatGroup');
-  if (waiterGroup) waiterGroup.style.display = (role === 'waiter') ? '' : 'none';
-  if (staffCatGroup) staffCatGroup.style.display = (role === 'staff') ? '' : 'none';
+  if (waiterGroup)   waiterGroup.style.display   = (role === 'waiter') ? '' : 'none';
+  if (staffCatGroup) staffCatGroup.style.display = (role === 'staff')  ? '' : 'none';
 }
 
 function saveUser() {
@@ -4003,38 +4430,25 @@ function saveUser() {
   const waiterId = document.getElementById('newUserWaiterId').value || null;
   const errEl    = document.getElementById('addUserError');
   const errMsg   = document.getElementById('addUserErrorMsg');
-
-  const showErr = (msg) => { errMsg.textContent = msg; errEl.style.display = 'flex'; };
+  const showErr  = (msg) => { errMsg.textContent = msg; errEl.style.display = 'flex'; };
   errEl.style.display = 'none';
 
-  if (!userId)  return showErr('User ID is required.');
-  if (!name)    return showErr('Display name is required.');
+  if (!userId) return showErr('User ID is required.');
+  if (!name)   return showErr('Display name is required.');
 
   if (_editingUserId === null) {
-    // ── Adding new user ──
-    if (_authUsers.find(u => u.userId === userId)) return showErr('User ID already exists. Choose a different one.');
-    if (!passcode)          return showErr('Passcode is required for new users.');
-    if (passcode.length < 4) return showErr('Passcode must be at least 4 characters.');
-
-    const newUser = { userId, passcode, name, role, active, waiterId };
-    _authUsers.push(newUser);
+    if (_authUsers.find(u => u.userId === userId)) return showErr('User ID already exists.');
+    if (!passcode)            return showErr('Passcode is required for new users.');
+    if (passcode.length < 4)  return showErr('Passcode must be at least 4 characters.');
+    _authUsers.push({ userId, passcode, name, role, active, waiterId });
     showToast('User added: ' + name, 'success');
   } else {
-    // ── Editing existing user ──
     const idx = _authUsers.findIndex(u => u.userId === _editingUserId);
     if (idx === -1) return showErr('User not found.');
-    const existing = _authUsers[idx];
-
-    // Only update passcode if a new one was entered
-    const updatedPasscode = passcode.length >= 4 ? passcode : (passcode.length > 0 ? null : existing.passcode);
     if (passcode.length > 0 && passcode.length < 4) return showErr('New passcode must be at least 4 characters.');
-
-    _authUsers[idx] = { ...existing, name, role, active, waiterId, passcode: updatedPasscode || existing.passcode };
-
-    // If editing the currently logged-in user, refresh their session data
-    if (_currentUser && _currentUser.userId === _editingUserId) {
-      _currentUser = { ..._authUsers[idx] };
-    }
+    const updatedPasscode = passcode.length >= 4 ? passcode : _authUsers[idx].passcode;
+    _authUsers[idx] = { ..._authUsers[idx], name, role, active, waiterId, passcode: updatedPasscode };
+    if (_currentUser && _currentUser.userId === _editingUserId) _currentUser = { ..._authUsers[idx] };
     showToast('User updated: ' + name, 'success');
   }
 
@@ -4045,13 +4459,11 @@ function saveUser() {
 
 function deleteAuthUser(userId) {
   if (_currentUser && _currentUser.userId === userId) {
-    showToast('⚠ You cannot delete your own account.', 'warning');
-    return;
+    showToast('⚠ You cannot delete your own account.', 'warning'); return;
   }
   const user = _authUsers.find(u => u.userId === userId);
   if (!user) return;
   if (!confirm(`Remove user "${user.name}" (${user.userId})? This cannot be undone.`)) return;
-
   _authUsers = _authUsers.filter(u => u.userId !== userId);
   saveUsers();
   renderUsersTable();
@@ -4064,78 +4476,37 @@ function deleteAuthUser(userId) {
 function renderStaffDashboard() {
   const el = document.getElementById('staffDashContent');
   if (!el) return;
-
   if (!_currentUser || (_currentUser.role !== 'waiter' && _currentUser.role !== 'staff')) {
     el.innerHTML = `<div class="empty-state"><div class="empty-icon">◉</div><div class="empty-text">Not available for your role.</div></div>`;
     return;
   }
-
-  // Find linked waiter
   const waiter = _currentUser.waiterId ? store.waiters.find(w => w.id === _currentUser.waiterId) : null;
-
   if (!waiter) {
-    el.innerHTML = `
-      <div class="card">
-        <div class="empty-state">
-          <div class="empty-icon">◉</div>
-          <div class="empty-text" style="max-width:300px;margin:0 auto">
-            No waiter record linked to your account.<br>
-            <span style="font-size:11px;font-family:'DM Mono',monospace;margin-top:8px;display:block">Ask an admin to link your account to your waiter record.</span>
-          </div>
-        </div>
-      </div>`;
+    el.innerHTML = `<div class="card"><div class="empty-state"><div class="empty-icon">◉</div><div class="empty-text" style="max-width:300px;margin:0 auto">No waiter record linked to your account.<br><span style="font-size:11px;font-family:'DM Mono',monospace;margin-top:8px;display:block">Ask an admin to link your account to your waiter record.</span></div></div></div>`;
     return;
   }
-
-  const todayStr = today();
+  const todayStr2 = today();
   const neverPaid = !waiter.lastPaidDate;
-  const fromDate = waiter.lastPaidDate || waiter.joinDate;
-  const newDues = calculateMultiDayDues(fromDate, todayStr, neverPaid);
-  const totalPendingWp = (waiter.pending_wp || 0) + newDues.wp;
-  const totalPendingHk = (waiter.pending_hk || 0) + newDues.hk;
-  const totalPendingPickup = (waiter.pending_pickup || 0) + newDues.pickup;
+  const fromDate  = waiter.lastPaidDate || waiter.joinDate;
+  const newDues   = calculateMultiDayDues(fromDate, todayStr2, neverPaid, waiter.id);
+  const totalPendingWp     = (waiter.pending_wp     || 0) + newDues.wp;
+  const totalPendingHk     = (waiter.pending_hk     || 0) + newDues.hk;
+  const totalPendingPickup = (waiter.pending_pickup  || 0) + newDues.pickup;
   const totalPending = totalPendingWp + totalPendingHk + totalPendingPickup;
 
   el.innerHTML = `
     <div class="section-header">
-      <div>
-        <div class="section-title">My Dashboard</div>
-        <div class="section-sub">Your payment summary — ${waiter.name}</div>
-      </div>
+      <div><div class="section-title">My Dashboard</div><div class="section-sub">Your payment summary — ${waiter.name}</div></div>
     </div>
     <div class="grid g3 mb-4">
-      <div class="stat-card" style="--accent-color:var(--pickup)">
-        <div class="stat-label">Pickup Pending</div>
-        <div class="stat-value ${totalPendingPickup > 0 ? 'text-red' : 'text-green'}">₹${totalPendingPickup.toLocaleString('en-IN')}</div>
-        <div class="stat-icon">🚗</div>
-      </div>
-      <div class="stat-card" style="--accent-color:var(--hk)">
-        <div class="stat-label">Housekeeping Pending</div>
-        <div class="stat-value ${totalPendingHk > 0 ? 'text-red' : 'text-green'}">₹${totalPendingHk.toLocaleString('en-IN')}</div>
-        <div class="stat-icon">🧹</div>
-      </div>
-      <div class="stat-card" style="--accent-color:var(--wp)">
-        <div class="stat-label">Wiping Pending</div>
-        <div class="stat-value ${totalPendingWp > 0 ? 'text-red' : 'text-green'}">₹${totalPendingWp.toLocaleString('en-IN')}</div>
-        <div class="stat-icon">🧽</div>
-      </div>
+      <div class="stat-card" style="--accent-color:var(--pickup)"><div class="stat-label">Pickup Pending</div><div class="stat-value ${totalPendingPickup>0?'text-red':'text-green'}">₹${totalPendingPickup.toLocaleString('en-IN')}</div><div class="stat-icon">🚗</div></div>
+      <div class="stat-card" style="--accent-color:var(--hk)"><div class="stat-label">Housekeeping Pending</div><div class="stat-value ${totalPendingHk>0?'text-red':'text-green'}">₹${totalPendingHk.toLocaleString('en-IN')}</div><div class="stat-icon">🧹</div></div>
+      <div class="stat-card" style="--accent-color:var(--wp)"><div class="stat-label">Wiping Pending</div><div class="stat-value ${totalPendingWp>0?'text-red':'text-green'}">₹${totalPendingWp.toLocaleString('en-IN')}</div><div class="stat-icon">🧽</div></div>
     </div>
     <div class="grid g3">
-      <div class="stat-card" style="--accent-color:var(--red)">
-        <div class="stat-label">Total Pending</div>
-        <div class="stat-value ${totalPending > 0 ? 'text-red' : 'text-green'}">₹${totalPending.toLocaleString('en-IN')}</div>
-        <div class="stat-icon">⊟</div>
-      </div>
-      <div class="stat-card" style="--accent-color:var(--green)">
-        <div class="stat-label">Total Paid</div>
-        <div class="stat-value text-green">₹${(waiter.paid || 0).toLocaleString('en-IN')}</div>
-        <div class="stat-icon">✓</div>
-      </div>
-      <div class="stat-card" style="--accent-color:var(--accent)">
-        <div class="stat-label">Advance Balance</div>
-        <div class="stat-value ${(waiter.advance||0) > 0 ? 'text-green' : ''}">₹${(waiter.advance || 0).toLocaleString('en-IN')}</div>
-        <div class="stat-icon">◈</div>
-      </div>
+      <div class="stat-card" style="--accent-color:var(--red)"><div class="stat-label">Total Pending</div><div class="stat-value ${totalPending>0?'text-red':'text-green'}">₹${totalPending.toLocaleString('en-IN')}</div><div class="stat-icon">⊟</div></div>
+      <div class="stat-card" style="--accent-color:var(--green)"><div class="stat-label">Total Paid</div><div class="stat-value text-green">₹${(waiter.paid||0).toLocaleString('en-IN')}</div><div class="stat-icon">✓</div></div>
+      <div class="stat-card" style="--accent-color:var(--accent)"><div class="stat-label">Advance Balance</div><div class="stat-value ${(waiter.advance||0)>0?'text-green':''}">₹${(waiter.advance||0).toLocaleString('en-IN')}</div><div class="stat-icon">◈</div></div>
     </div>
     <div class="card mt-6">
       <div class="card-title">Payment History</div>
@@ -4143,18 +4514,7 @@ function renderStaffDashboard() {
         ${(() => {
           const txns = store.transactions.filter(t => t.type === 'collection' && t.waiterId === waiter.id);
           if (!txns.length) return `<div class="empty-state"><div class="empty-icon">⊟</div><div class="empty-text">No payments recorded yet.</div></div>`;
-          return `<table>
-            <thead><tr><th>Date</th><th>Amount</th><th>Days Covered</th><th>Note</th></tr></thead>
-            <tbody>
-              ${txns.map(t => `
-                <tr>
-                  <td class="mono">${formatDateTime(t.date)}</td>
-                  <td class="text-green font-mono">+₹${(t.amount||0).toLocaleString('en-IN')}</td>
-                  <td>${t.detail?.days || 0} day(s)</td>
-                  <td style="color:var(--text3)">${t.note || '—'}</td>
-                </tr>`).join('')}
-            </tbody>
-          </table>`;
+          return `<table><thead><tr><th>Date</th><th>Amount</th><th>Days Covered</th><th>Note</th></tr></thead><tbody>${txns.map(t=>`<tr><td class="mono">${formatDateTime(t.date)}</td><td class="text-green font-mono">+₹${(t.amount||0).toLocaleString('en-IN')}</td><td>${t.detail?.days||0} day(s)</td><td style="color:var(--text3)">${t.note||'—'}</td></tr>`).join('')}</tbody></table>`;
         })()}
       </div>
     </div>`;
