@@ -56,6 +56,16 @@ window._fbLoadUsers = async () => {
   return snap.exists() ? (snap.data().users || []) : [];
 };
 
+// ── Activity Logs helpers ──
+const _logsRef = () => doc(_db, 'myData', 'activityLogs');
+window._fbSaveLogs = async (logsArr) => {
+  await setDoc(_logsRef(), { logs: logsArr, _savedAt: new Date().toISOString() });
+};
+window._fbLoadLogs = async () => {
+  const snap = await getDoc(_logsRef());
+  return snap.exists() ? (snap.data().logs || []) : [];
+};
+
 // Signal that Firebase is ready
 window._fbReady = true;
 window.dispatchEvent(new Event('fbReady'));
@@ -1322,6 +1332,27 @@ window.dispatchEvent(new Event('fbReady'));
 
   /* nav items hidden per role */
   .nav-item[data-role-hide] { display: none; }
+
+  /* ─── REPORT PERIOD BUTTONS ─── */
+  .rpt-period-btn {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--text2);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .rpt-period-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--accent); }
+  .rpt-period-btn.active {
+    background: var(--accent-glow);
+    color: var(--accent2);
+    border-color: rgba(108,99,255,0.5);
+  }
 </style>
 </head>
 <body>
@@ -1421,6 +1452,12 @@ window.dispatchEvent(new Event('fbReady'));
     </div>
     <div class="nav-item" onclick="showPage('attendance')" id="nav-attendance" style="display:none">
       <span class="icon">📅</span> Attendance
+    </div>
+    <div class="nav-item" onclick="showPage('activity-logs')" id="nav-activity-logs" style="display:none">
+      <span class="icon">📋</span> Activity Logs
+    </div>
+    <div class="nav-item" onclick="showPage('reports')" id="nav-reports" style="display:none">
+      <span class="icon">📊</span> Reports
     </div>
   </nav>
   <div class="sidebar-footer">
@@ -1771,6 +1808,113 @@ window.dispatchEvent(new Event('fbReady'));
       <div class="card-title">Absence Summary — This Week</div>
       <div id="attSummaryBody"></div>
     </div>
+  </div>
+  <!-- ADMIN: ACTIVITY LOGS (admin-only) -->
+  <div class="page" id="page-activity-logs">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Activity Logs</div>
+        <div class="section-sub">Full audit trail — visible to Admin only</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <select id="logFilter" onchange="renderActivityLogs()" style="width:auto;padding:8px 14px">
+          <option value="all">All Activities</option>
+          <option value="login">Logins / Logouts</option>
+          <option value="attendance">Attendance Changes</option>
+          <option value="user">User Management</option>
+          <option value="staff">Staff (Waiter) Events</option>
+        </select>
+        <button class="btn btn-danger btn-sm" onclick="clearActivityLogs()">🗑 Clear Logs</button>
+      </div>
+    </div>
+    <div class="grid g4 mb-4" id="logStatsRow"></div>
+    <div class="card" style="padding:0">
+      <div id="activityLogsList" style="max-height:70vh;overflow-y:auto"></div>
+    </div>
+  </div>
+  <!-- ADMIN: REPORTS (admin-only) -->
+  <div class="page" id="page-reports">
+
+    <!-- ── Filter Bar ── -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:24px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;white-space:nowrap">Filter by Date</span>
+
+        <!-- Quick buttons -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap" id="rptQuickBtns">
+          <button class="rpt-period-btn active" onclick="setReportPeriod('today')">Today</button>
+          <button class="rpt-period-btn" onclick="setReportPeriod('yesterday')">Yesterday</button>
+          <button class="rpt-period-btn" onclick="setReportPeriod('week')">This Week</button>
+          <button class="rpt-period-btn" onclick="setReportPeriod('month')">This Month</button>
+          <button class="rpt-period-btn" onclick="setReportPeriod('all')">All Time</button>
+          <button class="rpt-period-btn" onclick="setReportPeriod('custom')" id="rptCustomBtn">Custom Range</button>
+        </div>
+
+        <!-- Custom date pickers (hidden by default) -->
+        <div id="rptCustomRange" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--text3);font-family:'DM Mono',monospace">FROM</span>
+          <input type="date" id="rptDateFrom" onchange="renderReports()" style="width:160px;padding:7px 10px;font-size:13px" />
+          <span style="font-size:12px;color:var(--text3);font-family:'DM Mono',monospace">TO</span>
+          <input type="date" id="rptDateTo" onchange="renderReports()" style="width:160px;padding:7px 10px;font-size:13px" />
+        </div>
+
+        <!-- Active period label -->
+        <span id="rptPeriodLabel" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent2);margin-left:auto;white-space:nowrap"></span>
+      </div>
+
+      <!-- Sort + Type filter row -->
+      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px">Show</span>
+        <select id="rptTypeFilter" onchange="renderReports()" style="width:auto;padding:7px 12px;font-size:13px">
+          <option value="all">All Transactions</option>
+          <option value="collection">Collections Only</option>
+          <option value="withdrawal">Withdrawals Only</option>
+        </select>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-left:8px">Sort</span>
+        <select id="rptSort" onchange="renderReports()" style="width:auto;padding:7px 12px;font-size:13px">
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="highest">Highest Amount</option>
+          <option value="lowest">Lowest Amount</option>
+        </select>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-left:8px">Staff</span>
+        <select id="rptWaiterFilter" onchange="renderReports()" style="width:auto;padding:7px 12px;font-size:13px">
+          <option value="all">All Staff</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- ── Summary Stats ── -->
+    <div class="grid g4 mb-4" id="rptStats"></div>
+
+    <!-- ── Per-Waiter Breakdown ── -->
+    <div class="card mb-4" id="rptWaiterBreakdownCard">
+      <div class="card-title">Staff Payment Breakdown</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Staff Name</th>
+            <th>Payments Made</th>
+            <th>Total Collected</th>
+            <th>Wiping (WP)</th>
+            <th>Housekeeping (HK)</th>
+            <th>Pickup (PU)</th>
+            <th>Advance Balance</th>
+          </tr></thead>
+          <tbody id="rptWaiterBreakdownBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Transaction List ── -->
+    <div class="card" style="padding:0">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Transaction Detail</div>
+        <span id="rptTxnCount" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3)"></span>
+      </div>
+      <div id="rptTxnList" style="max-height:600px;overflow-y:auto"></div>
+    </div>
+
   </div>
 
 </main>
@@ -2588,6 +2732,7 @@ function saveNewWaiter() {
 
   const pendingNote = initTotal > 0 ? ` — ₹${initTotal} opening pending added` : '';
   showToast(`${name} added successfully${pendingNote}`, 'success');
+  pushLog('staff_added', `Added waiter "${name}" — Join Date: ${joinDate}`);
   renderAll();
 }
 
@@ -2756,7 +2901,7 @@ function executeDelete(deleteTransactions) {
       : `${name} removed. Transaction history kept.`,
     'warning'
   );
-
+  pushLog('staff_deleted', `Deleted waiter "${name}" — ${deleteTransactions ? 'Full delete (all data erased)' : 'Soft delete (history kept)'}`);
   renderAll();
   deleteTargetId = null;
   deleteMode = null;
@@ -3267,7 +3412,8 @@ function showPage(page) {
   const labels = {
     dashboard: 'Dashboard', waiters: 'Waiters', collection: 'Collection',
     withdrawal: 'Withdrawal', history: 'History', rules: 'Rules',
-    'staff-dashboard': 'My Dashboard', users: 'User Management', attendance: 'Attendance'
+    'staff-dashboard': 'My Dashboard', users: 'User Management', attendance: 'Attendance',
+    'activity-logs': 'Activity Logs', reports: 'Reports'
   };
   document.getElementById('topbarTitle').textContent = labels[page] || page;
 
@@ -3282,6 +3428,8 @@ function showPage(page) {
   if (page === 'history') renderHistory();
   if (page === 'dashboard') renderDashboard();
   if (page === 'waiters') renderWaiters();
+  if (page === 'activity-logs') renderActivityLogs();
+  if (page === 'reports') renderReports();
 }
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
@@ -3979,9 +4127,11 @@ function attToggle(waiterId, dateStr) {
     delete store.attendance[dateStr][waiterId];
     if (Object.keys(store.attendance[dateStr]).length === 0) delete store.attendance[dateStr];
     showToast('Marked Present — tips will apply', 'success');
+    pushLog('attendance', `Marked PRESENT — ${store.waiters.find(w=>w.id===waiterId)?.name||waiterId} on ${dateStr}`);
   } else {
     store.attendance[dateStr][waiterId] = true;
     showToast('Marked Absent — tips waived for this day', 'info');
+    pushLog('attendance', `Marked ABSENT — ${store.waiters.find(w=>w.id===waiterId)?.name||waiterId} on ${dateStr}`);
   }
 
   save();
@@ -4211,6 +4361,7 @@ function attemptLogin() {
   closeLoginPanel();
   applyRoleUI();
   showToast('Welcome, ' + user.name + '!', 'success');
+  pushLog('login', `"${user.name}" (${user.userId}) signed in — Role: ${user.role}`);
 }
 
 // ── Apply guest state (no login) ──
@@ -4234,7 +4385,7 @@ function applyGuestUI() {
   // Nav: only Dashboard for guest
   const el = document.getElementById('nav-dashboard'); if (el) el.style.display = '';
   ['nav-staff-dashboard','nav-waiters','nav-collection',
-   'nav-withdrawal','nav-history','nav-rules','nav-users','nav-attendance'].forEach(id => {
+   'nav-withdrawal','nav-history','nav-rules','nav-users','nav-attendance','nav-activity-logs','nav-reports'].forEach(id => {
     const e = document.getElementById(id); if (e) e.style.display = 'none';
   });
 
@@ -4245,6 +4396,7 @@ function applyGuestUI() {
 }
 
 function doLogout() {
+  if (_currentUser) pushLog('logout', `"${_currentUser.name}" (${_currentUser.userId}) signed out`);
   applyGuestUI();
   showToast('Signed out — viewing as guest', 'info');
 }
@@ -4266,7 +4418,7 @@ function applyRoleUI() {
   if (signInBtn) signInBtn.style.display = 'none';
 
   ['nav-dashboard','nav-staff-dashboard','nav-waiters','nav-collection',
-   'nav-withdrawal','nav-history','nav-rules','nav-users','nav-attendance'].forEach(id => {
+   'nav-withdrawal','nav-history','nav-rules','nav-users','nav-attendance','nav-activity-logs','nav-reports'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = 'none';
   });
   ['btnExportCsv','btnImportCsv','btnChangePasscode'].forEach(id => {
@@ -4275,7 +4427,7 @@ function applyRoleUI() {
 
   if (role === 'admin') {
     ['nav-dashboard','nav-waiters','nav-collection','nav-withdrawal',
-     'nav-history','nav-rules','nav-users','nav-attendance'].forEach(id => {
+     'nav-history','nav-rules','nav-users','nav-attendance','nav-activity-logs','nav-reports'].forEach(id => {
       const el = document.getElementById(id); if (el) el.style.display = '';
     });
     ['btnExportCsv','btnImportCsv','btnChangePasscode'].forEach(id => {
@@ -4316,6 +4468,8 @@ renderAll = function() {
   if (document.getElementById('page-users')?.classList.contains('active'))           renderUsersTable();
   if (document.getElementById('page-staff-dashboard')?.classList.contains('active')) renderStaffDashboard();
   if (document.getElementById('page-attendance')?.classList.contains('active'))      renderAttendance();
+  if (document.getElementById('page-activity-logs')?.classList.contains('active'))   renderActivityLogs();
+  if (document.getElementById('page-reports')?.classList.contains('active'))         renderReports();
 };
 
 // ── Hook showPage ──
@@ -4325,12 +4479,14 @@ showPage = function(page) {
   if (page === 'users')           renderUsersTable();
   if (page === 'staff-dashboard') renderStaffDashboard();
   if (page === 'attendance')      renderAttendance();
+  if (page === 'activity-logs')   renderActivityLogs();
 };
 
 // ── Extend init — guest by default, no forced login ──
 const _origInit = init;
 init = async function() {
   await loadUsers();
+  await loadActivityLogs();
   await _origInit.apply(this, arguments);
   applyGuestUI();
 };
@@ -4355,6 +4511,9 @@ function renderUsersTable() {
       ? `<span style="background:var(--green-dim);color:var(--green);border:1px solid rgba(34,211,165,0.3);padding:2px 8px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace">Active</span>`
       : `<span style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,91,106,0.3);padding:2px 8px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace">Inactive</span>`;
     const isSelf = _currentUser && _currentUser.userId === u.userId;
+    const toggleBtn = isSelf ? '' : (u.active
+      ? `<button class="btn btn-sm" style="background:var(--amber-dim);border:1px solid rgba(245,158,11,0.3);color:var(--amber);padding:5px 10px" onclick="toggleUserActive('${u.userId}')">⏸ Deactivate</button>`
+      : `<button class="btn btn-sm" style="background:var(--green-dim);border:1px solid rgba(34,211,165,0.3);color:var(--green);padding:5px 10px" onclick="toggleUserActive('${u.userId}')">▶ Activate</button>`);
     return `<tr>
       <td style="font-family:'DM Mono',monospace">${u.userId}</td>
       <td>${u.name}</td>
@@ -4362,9 +4521,10 @@ function renderUsersTable() {
       <td style="color:var(--text2)">${linkedWaiter}</td>
       <td>${statusBadge}</td>
       <td>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" onclick="openEditUserModal('${u.userId}')">✎ Edit</button>
-          ${isSelf ? '' : `<button class="btn btn-danger btn-sm" onclick="deleteAuthUser('${u.userId}')">✕</button>`}
+          ${toggleBtn}
+          ${isSelf ? '' : `<button class="btn btn-danger btn-sm" onclick="deleteAuthUser('${u.userId}')">✕ Del</button>`}
         </div>
       </td>
     </tr>`;
@@ -4442,6 +4602,7 @@ function saveUser() {
     if (passcode.length < 4)  return showErr('Passcode must be at least 4 characters.');
     _authUsers.push({ userId, passcode, name, role, active, waiterId });
     showToast('User added: ' + name, 'success');
+    pushLog('user_added', `Added user "${name}" (${userId}) — Role: ${role}`);
   } else {
     const idx = _authUsers.findIndex(u => u.userId === _editingUserId);
     if (idx === -1) return showErr('User not found.');
@@ -4450,6 +4611,7 @@ function saveUser() {
     _authUsers[idx] = { ..._authUsers[idx], name, role, active, waiterId, passcode: updatedPasscode };
     if (_currentUser && _currentUser.userId === _editingUserId) _currentUser = { ..._authUsers[idx] };
     showToast('User updated: ' + name, 'success');
+    pushLog('user_edited', `Edited user "${name}" (${userId}) — Role: ${role}`);
   }
 
   saveUsers();
@@ -4464,6 +4626,7 @@ function deleteAuthUser(userId) {
   const user = _authUsers.find(u => u.userId === userId);
   if (!user) return;
   if (!confirm(`Remove user "${user.name}" (${user.userId})? This cannot be undone.`)) return;
+  pushLog('user_deleted', `Deleted user "${user.name}" (${user.userId}) — Role: ${user.role}`);
   _authUsers = _authUsers.filter(u => u.userId !== userId);
   saveUsers();
   renderUsersTable();
@@ -4518,6 +4681,396 @@ function renderStaffDashboard() {
         })()}
       </div>
     </div>`;
+}
+
+// ═══════════════════════════════════════════════
+//  ACTIVITY LOGS ENGINE  (Admin-only)
+// ═══════════════════════════════════════════════
+
+let _activityLogs = [];
+let _logSaveTimer = null;
+
+async function loadActivityLogs() {
+  try {
+    _activityLogs = (await window._fbLoadLogs()) || [];
+  } catch(e) { _activityLogs = []; }
+}
+
+function saveActivityLogs() {
+  clearTimeout(_logSaveTimer);
+  _logSaveTimer = setTimeout(async () => {
+    try { await window._fbSaveLogs(_activityLogs); }
+    catch(e) { console.error('Log save error:', e); }
+  }, 800);
+}
+
+function pushLog(category, detail) {
+  if (typeof _activityLogs === 'undefined') return; // safety guard during early init
+  const actor = _currentUser
+    ? `${_currentUser.name} (${_currentUser.userId})`
+    : 'System';
+  _activityLogs.unshift({
+    id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
+    category,
+    ts: new Date().toISOString(),
+    actor,
+    detail
+  });
+  if (_activityLogs.length > 1000) _activityLogs.length = 1000;
+  saveActivityLogs();
+}
+
+// ── Activate / Deactivate user ──
+function toggleUserActive(userId) {
+  const user = _authUsers.find(u => u.userId === userId);
+  if (!user) return;
+  user.active = !user.active;
+  saveUsers();
+  renderUsersTable();
+  const action = user.active ? 'Activated' : 'Deactivated';
+  showToast(`${action}: ${user.name}`, user.active ? 'success' : 'warning');
+  pushLog(user.active ? 'user_activated' : 'user_deactivated',
+    `${action} user "${user.name}" (${user.userId}) — Role: ${user.role}`);
+}
+
+// ═══════════════════════════════════════════════
+//  RENDER ACTIVITY LOGS
+// ═══════════════════════════════════════════════
+
+const LOG_META = {
+  login:            { icon: '→',  color: 'var(--accent2)', bg: 'rgba(108,99,255,0.12)', label: 'Login'          },
+  logout:           { icon: '⏻',  color: 'var(--text3)',   bg: 'var(--surface3)',        label: 'Logout'         },
+  attendance:       { icon: '📅', color: 'var(--blue)',    bg: 'var(--blue-dim)',        label: 'Attendance'     },
+  user_added:       { icon: '⊞',  color: 'var(--green)',   bg: 'var(--green-dim)',       label: 'User Added'     },
+  user_edited:      { icon: '✎',  color: 'var(--amber)',   bg: 'var(--amber-dim)',       label: 'User Edited'    },
+  user_deleted:     { icon: '✕',  color: 'var(--red)',     bg: 'var(--red-dim)',         label: 'User Deleted'   },
+  user_activated:   { icon: '▶',  color: 'var(--green)',   bg: 'var(--green-dim)',       label: 'Activated'      },
+  user_deactivated: { icon: '⏸',  color: 'var(--amber)',   bg: 'var(--amber-dim)',       label: 'Deactivated'    },
+  staff_added:      { icon: '◉',  color: 'var(--green)',   bg: 'var(--green-dim)',       label: 'Staff Added'    },
+  staff_deleted:    { icon: '🗑', color: 'var(--red)',     bg: 'var(--red-dim)',         label: 'Staff Deleted'  },
+};
+
+function logGroup(cat) {
+  if (cat === 'login' || cat === 'logout') return 'login';
+  if (cat === 'attendance')               return 'attendance';
+  if (cat.startsWith('user_'))            return 'user';
+  if (cat.startsWith('staff_'))           return 'staff';
+  return 'all';
+}
+
+function renderActivityLogs() {
+  if (!_currentUser || _currentUser.role !== 'admin') return;
+
+  const filter = document.getElementById('logFilter')?.value || 'all';
+  const logs = filter === 'all'
+    ? _activityLogs
+    : _activityLogs.filter(l => logGroup(l.category) === filter);
+
+  // Stats
+  const statsEl = document.getElementById('logStatsRow');
+  if (statsEl) {
+    const counts = [
+      { label: 'Total Events',   val: _activityLogs.length,                                           color: 'var(--accent)',  icon: '◈' },
+      { label: 'Logins',         val: _activityLogs.filter(l => l.category === 'login').length,        color: 'var(--accent2)', icon: '→' },
+      { label: 'Attendance',     val: _activityLogs.filter(l => l.category === 'attendance').length,   color: 'var(--blue)',    icon: '📅'},
+      { label: 'User & Staff',   val: _activityLogs.filter(l => l.category.startsWith('user_') || l.category.startsWith('staff_')).length, color: 'var(--green)', icon: '◉' },
+    ];
+    statsEl.innerHTML = counts.map(s => `
+      <div class="stat-card" style="--accent-color:${s.color}">
+        <div class="stat-label">${s.label}</div>
+        <div class="stat-value" style="color:${s.color};font-size:24px;margin:4px 0">${s.val}</div>
+        <div class="stat-icon">${s.icon}</div>
+      </div>`).join('');
+  }
+
+  const listEl = document.getElementById('activityLogsList');
+  if (!listEl) return;
+
+  if (!logs.length) {
+    listEl.innerHTML = `
+      <div class="empty-state" style="padding:60px 0">
+        <div class="empty-icon">📋</div>
+        <div class="empty-text">No activity yet.<br>
+          <span style="font-size:11px;font-family:'DM Mono',monospace;margin-top:8px;display:block">
+            Logins, attendance changes, and user edits will appear here.
+          </span>
+        </div>
+      </div>`;
+    return;
+  }
+
+  listEl.innerHTML = logs.map(l => {
+    const m = LOG_META[l.category] || { icon: '◈', color: 'var(--text2)', bg: 'var(--surface2)', label: l.category };
+    return `
+      <div style="display:flex;align-items:flex-start;gap:16px;padding:14px 20px;border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+        <div style="width:36px;height:36px;border-radius:10px;background:${m.bg};border:1px solid ${m.color}44;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;margin-top:2px">${m.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+            <span style="font-size:11px;font-family:'DM Mono',monospace;background:${m.bg};color:${m.color};border:1px solid ${m.color}44;border-radius:20px;padding:2px 8px;white-space:nowrap">${m.label}</span>
+            <span style="font-size:13px;color:var(--text);font-weight:500">${l.detail}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;display:flex;gap:16px;flex-wrap:wrap">
+            <span>🕐 ${formatDateTime(l.ts)}</span>
+            <span>👤 ${l.actor}</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function clearActivityLogs() {
+  if (!_currentUser || _currentUser.role !== 'admin') return;
+  if (!confirm('Clear ALL activity logs permanently? This cannot be undone.')) return;
+  _activityLogs = [];
+  saveActivityLogs();
+  renderActivityLogs();
+  showToast('Activity logs cleared', 'info');
+}
+
+// ═══════════════════════════════════════════════
+//  REPORTS ENGINE  (Admin-only)
+// ═══════════════════════════════════════════════
+
+let _rptPeriod = 'today'; // today | yesterday | week | month | all | custom
+
+function setReportPeriod(period) {
+  _rptPeriod = period;
+  // Update active button
+  document.querySelectorAll('.rpt-period-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  // Show/hide custom pickers
+  const customRow = document.getElementById('rptCustomRange');
+  if (customRow) customRow.style.display = period === 'custom' ? 'flex' : 'none';
+  renderReports();
+}
+
+function getRptDateRange() {
+  const now  = new Date();
+  const todayStr = today();
+
+  if (_rptPeriod === 'today') {
+    return { from: todayStr, to: todayStr, label: 'Today — ' + formatDate(todayStr) };
+  }
+  if (_rptPeriod === 'yesterday') {
+    const y = new Date(now); y.setDate(y.getDate() - 1);
+    const ys = attDateStr(y);
+    return { from: ys, to: ys, label: 'Yesterday — ' + formatDate(ys) };
+  }
+  if (_rptPeriod === 'week') {
+    const mon = attWeekStart(0);
+    const monStr = attDateStr(mon);
+    return { from: monStr, to: todayStr, label: 'This Week (' + formatDate(monStr) + ' – ' + formatDate(todayStr) + ')' };
+  }
+  if (_rptPeriod === 'month') {
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const firstStr = attDateStr(firstDay);
+    return { from: firstStr, to: todayStr, label: 'This Month (' + formatDate(firstStr) + ' – ' + formatDate(todayStr) + ')' };
+  }
+  if (_rptPeriod === 'custom') {
+    const from = document.getElementById('rptDateFrom')?.value || todayStr;
+    const to   = document.getElementById('rptDateTo')?.value   || todayStr;
+    const f = from <= to ? from : to;
+    const t = from <= to ? to   : from;
+    return { from: f, to: t, label: 'Custom: ' + formatDate(f) + ' – ' + formatDate(t) };
+  }
+  // all
+  return { from: '2000-01-01', to: '2099-12-31', label: 'All Time' };
+}
+
+function txnDateStr(isoStr) {
+  // Returns YYYY-MM-DD local date from an ISO timestamp
+  const d = new Date(isoStr);
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const dy = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dy}`;
+}
+
+function renderReports() {
+  if (!_currentUser || _currentUser.role !== 'admin') return;
+
+  const { from, to, label } = getRptDateRange();
+  const typeFilter   = document.getElementById('rptTypeFilter')?.value   || 'all';
+  const sortMode     = document.getElementById('rptSort')?.value         || 'newest';
+  const waiterFilter = document.getElementById('rptWaiterFilter')?.value || 'all';
+
+  // Update period label
+  const labelEl = document.getElementById('rptPeriodLabel');
+  if (labelEl) labelEl.textContent = label;
+
+  // Populate waiter filter dropdown (once, preserve selection)
+  const waiterSel = document.getElementById('rptWaiterFilter');
+  if (waiterSel) {
+    const current = waiterSel.value;
+    waiterSel.innerHTML = '<option value="all">All Staff</option>' +
+      store.waiters.map(w => `<option value="${w.id}"${w.id === current ? ' selected' : ''}>${w.name}</option>`).join('');
+    // also add deleted waiter names that appear in transactions
+    const txnNames = [...new Set(
+      store.transactions
+        .filter(t => t.type === 'collection' && t.waiterId && !store.waiters.find(w => w.id === t.waiterId))
+        .map(t => ({ id: t.waiterId, name: t.waiterName }))
+    )];
+    txnNames.forEach(({ id, name }) => {
+      if (!waiterSel.querySelector(`option[value="${id}"]`)) {
+        waiterSel.innerHTML += `<option value="${id}"${id === current ? ' selected' : ''}>${name} [removed]</option>`;
+      }
+    });
+  }
+
+  // Filter transactions by date range
+  let txns = store.transactions.filter(t => {
+    if (t.type !== 'collection' && t.type !== 'withdrawal') return false;
+    const ds = txnDateStr(t.date);
+    return ds >= from && ds <= to;
+  });
+
+  // Type filter
+  if (typeFilter === 'collection') txns = txns.filter(t => t.type === 'collection');
+  if (typeFilter === 'withdrawal') txns = txns.filter(t => t.type === 'withdrawal');
+
+  // Waiter filter
+  if (waiterFilter !== 'all') {
+    txns = txns.filter(t => t.waiterId === waiterFilter || (t.type === 'withdrawal' && waiterFilter === 'all'));
+    if (typeFilter !== 'withdrawal') txns = txns.filter(t => t.type !== 'collection' || t.waiterId === waiterFilter);
+  }
+
+  // Sort
+  txns = [...txns];
+  if (sortMode === 'newest') txns.sort((a,b) => new Date(b.date) - new Date(a.date));
+  if (sortMode === 'oldest') txns.sort((a,b) => new Date(a.date) - new Date(b.date));
+  if (sortMode === 'highest') txns.sort((a,b) => (b.amount||0) - (a.amount||0));
+  if (sortMode === 'lowest')  txns.sort((a,b) => (a.amount||0) - (b.amount||0));
+
+  const collections  = txns.filter(t => t.type === 'collection');
+  const withdrawals  = txns.filter(t => t.type === 'withdrawal');
+
+  const totalCollected  = collections.reduce((s,t) => s + (t.amount||0), 0);
+  const totalWithdrawn  = withdrawals.reduce((s,t)  => s + (t.amount||0), 0);
+  const totalWP         = collections.reduce((s,t) => s + (t.detail?.paidWp||0), 0);
+  const totalHK         = collections.reduce((s,t) => s + (t.detail?.paidHk||0), 0);
+  const totalPU         = collections.reduce((s,t) => s + (t.detail?.paidPickup||0), 0);
+  const uniquePayers    = new Set(collections.map(t => t.waiterId)).size;
+
+  // ── Stats row ──
+  const statsEl = document.getElementById('rptStats');
+  if (statsEl) {
+    statsEl.innerHTML = [
+      { label: 'Total Collected',  val: '₹' + totalCollected.toLocaleString('en-IN'),  color: 'var(--green)',   icon: '💰' },
+      { label: 'Payments Made',    val: collections.length,                              color: 'var(--accent2)', icon: '◎'  },
+      { label: 'Staff Who Paid',   val: uniquePayers,                                    color: 'var(--blue)',    icon: '◉'  },
+      { label: 'Total Withdrawn',  val: '₹' + totalWithdrawn.toLocaleString('en-IN'),   color: 'var(--red)',     icon: '⊖'  },
+    ].map(s => `
+      <div class="stat-card" style="--accent-color:${s.color}">
+        <div class="stat-label">${s.label}</div>
+        <div class="stat-value" style="color:${s.color};font-size:22px;margin:4px 0">${s.val}</div>
+        <div class="stat-icon">${s.icon}</div>
+      </div>`).join('');
+  }
+
+  // ── Per-waiter breakdown ──
+  const bCard = document.getElementById('rptWaiterBreakdownCard');
+  const bBody = document.getElementById('rptWaiterBreakdownBody');
+  if (bCard && bBody) {
+    if (typeFilter === 'withdrawal' || !collections.length) {
+      bCard.style.display = 'none';
+    } else {
+      bCard.style.display = '';
+      // Group by waiter
+      const byWaiter = {};
+      collections.forEach(t => {
+        const key = t.waiterId || t.waiterName;
+        if (!byWaiter[key]) byWaiter[key] = { name: t.waiterName, count: 0, total: 0, wp: 0, hk: 0, pu: 0 };
+        byWaiter[key].count++;
+        byWaiter[key].total += t.amount || 0;
+        byWaiter[key].wp    += t.detail?.paidWp     || 0;
+        byWaiter[key].hk    += t.detail?.paidHk     || 0;
+        byWaiter[key].pu    += t.detail?.paidPickup || 0;
+      });
+      const rows = Object.values(byWaiter).sort((a,b) => b.total - a.total);
+      if (!rows.length) {
+        bBody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text3)">No collections in this period.</td></tr>`;
+      } else {
+        bBody.innerHTML = rows.map(r => {
+          const waiter = store.waiters.find(w => w.name === r.name);
+          const advance = waiter ? (waiter.advance || 0) : 0;
+          return `<tr>
+            <td style="font-weight:600">${r.name}</td>
+            <td style="text-align:center;font-family:'DM Mono',monospace">${r.count}</td>
+            <td class="text-green font-mono">₹${r.total.toLocaleString('en-IN')}</td>
+            <td class="wp-color font-mono">₹${r.wp.toLocaleString('en-IN')}</td>
+            <td class="hk-color font-mono">₹${r.hk.toLocaleString('en-IN')}</td>
+            <td class="pickup-color font-mono">₹${r.pu.toLocaleString('en-IN')}</td>
+            <td class="${advance>0?'text-green':'text-muted'} font-mono">₹${advance.toLocaleString('en-IN')}</td>
+          </tr>`;
+        }).join('');
+      }
+    }
+  }
+
+  // ── Transaction list ──
+  const countEl = document.getElementById('rptTxnCount');
+  if (countEl) countEl.textContent = `${txns.length} record${txns.length !== 1 ? 's' : ''}`;
+
+  const listEl = document.getElementById('rptTxnList');
+  if (!listEl) return;
+
+  if (!txns.length) {
+    listEl.innerHTML = `
+      <div class="empty-state" style="padding:60px 0">
+        <div class="empty-icon">◎</div>
+        <div class="empty-text">No transactions found for this period.<br>
+          <span style="font-size:11px;font-family:'DM Mono',monospace;margin-top:8px;display:block">Try a different date range or filter.</span>
+        </div>
+      </div>`;
+    return;
+  }
+
+  listEl.innerHTML = txns.map(t => {
+    if (t.type === 'collection') {
+      const d = t.detail || {};
+      const ds = txnDateStr(t.date);
+      return `
+        <div style="display:flex;align-items:flex-start;gap:16px;padding:14px 20px;border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+          <div style="width:36px;height:36px;border-radius:10px;background:var(--green-dim);border:1px solid rgba(34,211,165,0.3);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;margin-top:2px">💰</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">
+              <span style="font-size:14px;font-weight:600;color:var(--text)">${t.waiterName}</span>
+              <span style="font-size:11px;font-family:'DM Mono',monospace;background:var(--green-dim);color:var(--green);border:1px solid rgba(34,211,165,0.3);border-radius:20px;padding:2px 8px">COLLECTION</span>
+              ${t.note ? `<span style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace">${t.note}</span>` : ''}
+            </div>
+            <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:6px">
+              🕐 ${formatDateTime(t.date)} &nbsp;•&nbsp; ${d.days||0} day(s) covered
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;font-family:'DM Mono',monospace">
+              <span class="wp-color">🧽 WP ₹${d.paidWp||0}</span>
+              <span class="hk-color">🧹 HK ₹${d.paidHk||0}</span>
+              <span class="pickup-color">🚗 PU ₹${d.paidPickup||0}</span>
+              ${(d.newAdvance||0) > 0 ? `<span class="text-green">Advance ₹${d.newAdvance}</span>` : ''}
+            </div>
+          </div>
+          <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--green);white-space:nowrap;margin-top:2px">+₹${(t.amount||0).toLocaleString('en-IN')}</div>
+        </div>`;
+    }
+    if (t.type === 'withdrawal') {
+      const catLabel = { pickup: '🚗 Pickup', hk: '🧹 Housekeeping', wp: '🧽 Wiping' }[t.category] || t.category;
+      return `
+        <div style="display:flex;align-items:flex-start;gap:16px;padding:14px 20px;border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+          <div style="width:36px;height:36px;border-radius:10px;background:var(--red-dim);border:1px solid rgba(255,91,106,0.3);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;margin-top:2px">⊖</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">
+              <span style="font-size:14px;font-weight:600;color:var(--text)">${catLabel} Withdrawal</span>
+              <span style="font-size:11px;font-family:'DM Mono',monospace;background:var(--red-dim);color:var(--red);border:1px solid rgba(255,91,106,0.3);border-radius:20px;padding:2px 8px">WITHDRAWAL</span>
+              ${t.note ? `<span style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace">${t.note}</span>` : ''}
+            </div>
+            <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace">
+              🕐 ${formatDateTime(t.date)}
+            </div>
+          </div>
+          <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--red);white-space:nowrap;margin-top:2px">-₹${(t.amount||0).toLocaleString('en-IN')}</div>
+        </div>`;
+    }
+    return '';
+  }).join('');
 }
 
 </script>
