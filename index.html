@@ -7,10 +7,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script type="module">
 // ═══════════════════════════════════════════════
-//  FIREBASE SETUP
+//  FIREBASE SETUP — REAL-TIME SYNC
 // ═══════════════════════════════════════════════
-import { initializeApp }              from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getFirestore, doc, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { initializeApp }     from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getFirestore, doc, setDoc, getDoc, onSnapshot }
+                              from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey:            "AIzaSyDMupFmkCppBnNMeWnbKNTRlyX3nR2TOic",
@@ -23,50 +24,105 @@ const firebaseConfig = {
 
 const _fbApp = initializeApp(firebaseConfig);
 const _db    = getFirestore(_fbApp);
-const _dataRef    = () => doc(_db, 'myData', 'latest');
+
+const _dataRef     = () => doc(_db, 'myData', 'latest');
 const _passcodeRef = () => doc(_db, 'myData', 'passcode');
-const _usersRef   = () => doc(_db, 'myData', 'users');
+const _usersRef    = () => doc(_db, 'myData', 'users');
+const _logsRef     = () => doc(_db, 'myData', 'activityLogs');
 
-// Expose Firebase helpers onto window so the main script can call them
-window._fbSaveData = async (storeObj) => {
-  await setDoc(_dataRef(), { ...storeObj, _savedAt: new Date().toISOString() });
+// ── One-time read helpers (used during init) ──
+window._fbLoadData     = async () => { const s = await getDoc(_dataRef());     return s.exists() ? s.data() : null; };
+window._fbLoadPasscode = async () => { const s = await getDoc(_passcodeRef()); return s.exists() ? s.data().passcode : null; };
+window._fbLoadUsers    = async () => { const s = await getDoc(_usersRef());    return s.exists() ? (s.data().users || []) : []; };
+window._fbLoadLogs     = async () => { const s = await getDoc(_logsRef());     return s.exists() ? (s.data().logs  || []) : []; };
+
+// ── Write helpers ──
+window._fbSaveData     = async (obj)  => setDoc(_dataRef(),     { ...obj, _savedAt: new Date().toISOString() });
+window._fbSavePasscode = async (code) => setDoc(_passcodeRef(), { passcode: code, _savedAt: new Date().toISOString() });
+window._fbSaveUsers    = async (arr)  => setDoc(_usersRef(),    { users: arr,  _savedAt: new Date().toISOString() });
+window._fbSaveLogs     = async (arr)  => setDoc(_logsRef(),     { logs:  arr,  _savedAt: new Date().toISOString() });
+
+// ══════════════════════════════════════════════
+//  REAL-TIME LISTENERS
+//  Each listener fires on every remote change,
+//  updates the in-memory state, and re-renders.
+// ══════════════════════════════════════════════
+
+// Guard: skip re-applying a snapshot that WE just wrote
+//   (Firestore fires the listener for local writes too)
+window._fbLocalWrite = false;
+
+function setSyncDot(color) {
+  // color: 'green' | 'amber' | 'red'
+  const dot = document.getElementById('syncDot');
+  const lbl = document.getElementById('syncLabel');
+  if (!dot || !lbl) return;
+  const map = {
+    green: { bg: 'var(--green)', shadow: 'var(--green)', text: 'Live' },
+    amber: { bg: 'var(--amber)', shadow: 'var(--amber)', text: 'Syncing…' },
+    red:   { bg: 'var(--red)',   shadow: 'var(--red)',   text: 'Offline' },
+  };
+  const m = map[color] || map.green;
+  dot.style.background  = m.bg;
+  dot.style.boxShadow   = `0 0 6px ${m.shadow}`;
+  lbl.textContent       = m.text;
+  lbl.style.color       = m.bg;
+}
+
+// ── 1. Main store data ──
+window._fbStartMainListener = () => {
+  return onSnapshot(_dataRef(), (snap) => {
+    if (!snap.exists()) return;
+    // Skip if this update came from our own write (avoid flicker)
+    const incoming = snap.data();
+    if (window._fbLocalWrite) { window._fbLocalWrite = false; return; }
+    const { _savedAt, ...rest } = incoming;
+    // Merge into store safely
+    const S = window._getStore ? window._getStore() : null;
+    if (!S) return;
+    Object.assign(S, {
+      withdrawals:    { pickup: 0, hk: 0, wp: 0 },
+      deleted_waiters: [],
+      attendance:     {},
+      ...rest
+    });
+    window._triggerRenderAll && window._triggerRenderAll();
+    setSyncDot('green');
+  }, (err) => {
+    console.error('Main listener error:', err);
+    setSyncDot('red');
+  });
 };
 
-window._fbLoadData = async () => {
-  const snap = await getDoc(_dataRef());
-  return snap.exists() ? snap.data() : null;
+// ── 2. Users ──
+window._fbStartUsersListener = () => {
+  return onSnapshot(_usersRef(), (snap) => {
+    if (!snap.exists()) return;
+    const users = snap.data().users || [];
+    window._applyRemoteUsers && window._applyRemoteUsers(users);
+    setSyncDot('green');
+  }, (err) => { console.error('Users listener:', err); setSyncDot('red'); });
 };
 
-window._fbSavePasscode = async (code) => {
-  await setDoc(_passcodeRef(), { passcode: code, _savedAt: new Date().toISOString() });
+// ── 3. Passcode ──
+window._fbStartPasscodeListener = () => {
+  return onSnapshot(_passcodeRef(), (snap) => {
+    if (!snap.exists()) return;
+    const pc = snap.data().passcode;
+    if (pc && window._applyRemotePasscode) window._applyRemotePasscode(pc);
+  });
 };
 
-window._fbLoadPasscode = async () => {
-  const snap = await getDoc(_passcodeRef());
-  return snap.exists() ? snap.data().passcode : null;
+// ── 4. Activity Logs ──
+window._fbStartLogsListener = () => {
+  return onSnapshot(_logsRef(), (snap) => {
+    if (!snap.exists()) return;
+    const logs = snap.data().logs || [];
+    window._applyRemoteLogs && window._applyRemoteLogs(logs);
+  }, (err) => { console.error('Logs listener:', err); });
 };
 
-// ── User management helpers ──
-window._fbSaveUsers = async (usersArr) => {
-  await setDoc(_usersRef(), { users: usersArr, _savedAt: new Date().toISOString() });
-};
-
-window._fbLoadUsers = async () => {
-  const snap = await getDoc(_usersRef());
-  return snap.exists() ? (snap.data().users || []) : [];
-};
-
-// ── Activity Logs helpers ──
-const _logsRef = () => doc(_db, 'myData', 'activityLogs');
-window._fbSaveLogs = async (logsArr) => {
-  await setDoc(_logsRef(), { logs: logsArr, _savedAt: new Date().toISOString() });
-};
-window._fbLoadLogs = async () => {
-  const snap = await getDoc(_logsRef());
-  return snap.exists() ? (snap.data().logs || []) : [];
-};
-
-// Signal that Firebase is ready
+// Signal ready
 window._fbReady = true;
 window.dispatchEvent(new Event('fbReady'));
 </script>
@@ -1333,6 +1389,16 @@ window.dispatchEvent(new Event('fbReady'));
   /* nav items hidden per role */
   .nav-item[data-role-hide] { display: none; }
 
+  /* ─── SYNC DOT ─── */
+  #syncDot {
+    transition: background 0.4s, box-shadow 0.4s, transform 0.3s;
+    animation: syncPulse 2.5s infinite;
+  }
+  @keyframes syncPulse {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+  }
+
   /* ─── REPORT PERIOD BUTTONS ─── */
   .rpt-period-btn {
     padding: 6px 14px;
@@ -1419,7 +1485,7 @@ window.dispatchEvent(new Event('fbReady'));
 <aside id="sidebar">
   <div class="sidebar-brand">
     <div class="brand-name">TipFlow</div>
-    <div class="brand-sub">Designed by Saurav (Manager)</div>
+    <div class="brand-sub">STAFF CONTRIBUTION MGR</div>
   </div>
   <div class="sidebar-date">
     TODAY
@@ -1480,6 +1546,11 @@ window.dispatchEvent(new Event('fbReady'));
     <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
     <div class="topbar-title" id="topbarTitle">Dashboard</div>
     <div style="display:flex;align-items:center;gap:12px">
+      <!-- Real-time sync indicator -->
+      <div style="display:flex;align-items:center;gap:5px" title="Real-time sync status">
+        <div id="syncDot" style="width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 6px var(--amber);flex-shrink:0;transition:all 0.4s"></div>
+        <span id="syncLabel" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--amber);letter-spacing:0.3px;transition:color 0.4s">Connecting…</span>
+      </div>
       <div id="topbarRoleChip"></div>
       <button id="topbarSignInBtn" onclick="openLoginPanel()" class="btn-mode-enter" style="font-size:11px;padding:5px 12px">→ Sign In</button>
       <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text3)" id="topbarDate"></div>
@@ -2322,14 +2393,25 @@ let deleteTargetId = null;
 let _saveTimer = null;
 
 function save() {
-  // Debounce: wait 400 ms after the last call before writing to Firestore
+  // Show syncing state immediately
+  const dot = document.getElementById('syncDot');
+  const lbl = document.getElementById('syncLabel');
+  if (dot) { dot.style.background = 'var(--amber)'; dot.style.boxShadow = '0 0 6px var(--amber)'; }
+  if (lbl) { lbl.textContent = 'Syncing…'; lbl.style.color = 'var(--amber)'; }
+
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {
     try {
+      window._fbLocalWrite = true; // suppress listener echo
       await window._fbSaveData(store);
+      // Show live (green) after successful save
+      if (dot) { dot.style.background = 'var(--green)'; dot.style.boxShadow = '0 0 6px var(--green)'; }
+      if (lbl) { lbl.textContent = 'Live'; lbl.style.color = 'var(--green)'; }
     } catch (e) {
       console.error('Firestore save error:', e);
       showToast('⚠ Cloud save failed — check connection', 'warning');
+      if (dot) { dot.style.background = 'var(--red)'; dot.style.boxShadow = '0 0 6px var(--red)'; }
+      if (lbl) { lbl.textContent = 'Offline'; lbl.style.color = 'var(--red)'; }
     }
   }, 400);
 }
@@ -2346,6 +2428,55 @@ async function load() {
     console.error('Firestore load error:', e);
     showToast('⚠ Could not load cloud data — check connection', 'error');
   }
+}
+
+// ═══════════════════════════════════════════════
+//  REAL-TIME SYNC BRIDGE
+//  Connects the Firebase module listeners to the
+//  main script's state and render functions.
+// ═══════════════════════════════════════════════
+
+// Expose store getter so the Firebase module can reach it
+window._getStore = () => store;
+
+// Called by Firebase module when remote store data changes
+window._triggerRenderAll = () => {
+  // Don't re-render if we triggered this write ourselves
+  renderAll();
+  // Show a brief "synced" flash
+  const dot = document.getElementById('syncDot');
+  if (dot) {
+    dot.style.transform = 'scale(1.6)';
+    setTimeout(() => { dot.style.transform = 'scale(1)'; }, 300);
+  }
+};
+
+// Called when remote users list changes
+window._applyRemoteUsers = (users) => {
+  if (JSON.stringify(users) === JSON.stringify(_authUsers)) return; // no change
+  _authUsers = users;
+  renderUsersTable();
+};
+
+// Called when remote passcode changes
+window._applyRemotePasscode = (pc) => {
+  _cachedPasscode = pc;
+};
+
+// Called when remote logs change
+window._applyRemoteLogs = (logs) => {
+  _activityLogs = logs;
+  if (document.getElementById('page-activity-logs')?.classList.contains('active')) {
+    renderActivityLogs();
+  }
+};
+
+// Start all 4 real-time listeners (called from init)
+function startRealtimeListeners() {
+  if (window._fbStartMainListener)     window._fbStartMainListener();
+  if (window._fbStartUsersListener)    window._fbStartUsersListener();
+  if (window._fbStartPasscodeListener) window._fbStartPasscodeListener();
+  if (window._fbStartLogsListener)     window._fbStartLogsListener();
 }
 
 // ═══════════════════════════════════════════════
@@ -3799,6 +3930,9 @@ async function init() {
   renderAll();
   // Apply initial View Mode state after first render
   if (typeof applyModeUI === 'function') applyModeUI();
+
+  // Start real-time listeners AFTER initial load so they don't double-render
+  startRealtimeListeners();
 }
 
 // ═══════════════════════════════════════════════
@@ -4114,6 +4248,22 @@ function isAdminLoggedIn() {
 }
 
 // ── Toggle a waiter's absence for a date (admin only) ──
+// Guard wrapper — disables button for 800ms after click to prevent double-fire
+function attToggleGuarded(waiterId, dateStr, btn) {
+  if (btn && btn.disabled) return; // already processing
+  if (btn) {
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    btn.textContent = '…';
+    setTimeout(() => {
+      // Re-enable and re-render after save window
+      btn.disabled = false;
+      renderAttendance();
+    }, 900);
+  }
+  attToggle(waiterId, dateStr);
+}
+
 function attToggle(waiterId, dateStr) {
   if (!isAdminLoggedIn()) { showToast('⚠ Only Admins can update attendance', 'warning'); return; }
   const todayStr = today();
@@ -4134,7 +4284,27 @@ function attToggle(waiterId, dateStr) {
     pushLog('attendance', `Marked ABSENT — ${store.waiters.find(w=>w.id===waiterId)?.name||waiterId} on ${dateStr}`);
   }
 
-  save();
+  // Immediate save (bypass debounce) so rapid clicks don't lose data
+  clearTimeout(_saveTimer);
+  _saveTimer = null;
+  const _sDot = document.getElementById('syncDot');
+  const _sLbl = document.getElementById('syncLabel');
+  if (_sDot) { _sDot.style.background = 'var(--amber)'; _sDot.style.boxShadow = '0 0 6px var(--amber)'; }
+  if (_sLbl) { _sLbl.textContent = 'Syncing…'; _sLbl.style.color = 'var(--amber)'; }
+  (async () => {
+    try {
+      window._fbLocalWrite = true;
+      await window._fbSaveData(store);
+      if (_sDot) { _sDot.style.background = 'var(--green)'; _sDot.style.boxShadow = '0 0 6px var(--green)'; }
+      if (_sLbl) { _sLbl.textContent = 'Live'; _sLbl.style.color = 'var(--green)'; }
+    } catch(e) {
+      console.error('Attendance save error:', e);
+      showToast('⚠ Cloud save failed — check connection', 'warning');
+      if (_sDot) { _sDot.style.background = 'var(--red)'; _sDot.style.boxShadow = '0 0 6px var(--red)'; }
+      if (_sLbl) { _sLbl.textContent = 'Offline'; _sLbl.style.color = 'var(--red)'; }
+    }
+  })();
+
   renderAttendance();
   // Refresh open pages that use dues calculations
   if (document.getElementById('page-dashboard')?.classList.contains('active')) renderDashboard();
@@ -4216,7 +4386,8 @@ function renderAttendance() {
       html += `<td class="${isToday ? 'att-today-cell' : ''}">
         <button
           class="att-toggle ${cls}${!clickable ? ' att-readonly' : ''}"
-          ${clickable ? `onclick="attToggle('${w.id}','${date}')"` : ''}
+          id="att-${w.id}-${date}"
+          ${clickable ? `onclick="attToggleGuarded('${w.id}','${date}',this)"` : ''}
           title="${isFuture ? 'Future date' : isAdmin ? 'Click to toggle' : 'View only'}"
         >${label}</button>
       </td>`;
