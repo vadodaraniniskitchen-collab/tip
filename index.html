@@ -69,6 +69,11 @@ const _col = {
 const _withdrawalsRef = () => doc(_db, 'meta', 'withdrawals');
 const _configRef      = () => doc(_db, 'meta', 'config');    // passcode ONLY
 
+// ── Leave collection ──
+// leaves/{leaveId}  ~300 B — one doc per leave record
+// { id, waiterId, waiterName, startDate, endDate|null, active, createdAt, endedAt|null }
+const _leavesRef = () => collection(_db, 'leaves');
+
 // ══════════════════════════════════════════════
 //  SYNC DOT
 // ══════════════════════════════════════════════
@@ -96,7 +101,7 @@ window.setSyncDot = setSyncDot;
 window._fbLoadData = async () => {
   const [
     waitersSnap, txnsSnap, attSnap,
-    delWaitersSnap, wdSnap, cfgSnap
+    delWaitersSnap, wdSnap, cfgSnap, leavesSnap
   ] = await Promise.all([
     getDocs(_col.waiters()),
     getDocs(_col.transactions()),
@@ -104,6 +109,7 @@ window._fbLoadData = async () => {
     getDocs(_col.deletedWaiters()),
     getDoc(_withdrawalsRef()),
     getDoc(_configRef()),
+    getDocs(_leavesRef()),
   ]);
 
   // ── If new collections are empty, check old single-doc location ──
@@ -191,7 +197,11 @@ window._fbLoadData = async () => {
   const cfg      = cfgSnap.exists() ? cfgSnap.data() : {};
   const passcode = cfg.passcode || null;
 
-  return { waiters, transactions, attendance, withdrawals, deleted_waiters, _passcode: passcode };
+  const leaves = leavesSnap.docs.map(d => {
+    const { _t, ...r } = d.data(); return r;
+  }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  return { waiters, transactions, attendance, withdrawals, deleted_waiters, leaves, _passcode: passcode };
 };
 
 // ══════════════════════════════════════════════
@@ -317,6 +327,24 @@ window._fbSaveWithdrawals = async (wd) => {
 window._fbSaveConfig = async (passcode) => {
   window._cachedPasscodeMeta = passcode;
   await setDoc(_configRef(), { passcode, _t: Date.now() });
+};
+
+// ── Leave records (~300 B each) ──
+window._fbSaveLeave = async (leave) => {
+  await setDoc(doc(_leavesRef(), leave.id), { ...leave, _t: Date.now() });
+};
+window._fbDeleteLeave = async (leaveId) => {
+  await deleteDoc(doc(_leavesRef(), leaveId));
+};
+window._fbStartLeavesListener = () => {
+  return onSnapshot(_leavesRef(), snap => {
+    if (window._fbConsumeWrite()) return;
+    const S = window._getStore && window._getStore();
+    if (!S) return;
+    S.leaves = snap.docs.map(d => { const { _t, ...r } = d.data(); return r; })
+                         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    window._triggerRenderAll && window._triggerRenderAll();
+  }, () => {});
 };
 
 // ── Passcode helpers ──
@@ -1766,6 +1794,68 @@ window.dispatchEvent(new Event('fbReady'));
     color: var(--accent2);
     border-color: rgba(108,99,255,0.5);
   }
+
+  /* ─── LEAVE MANAGEMENT ─── */
+  .leave-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  .leave-card:last-child { border-bottom: none; }
+  .leave-card:hover { background: var(--surface2); }
+
+  .leave-avatar {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .leave-avatar.active-leave {
+    background: rgba(245,158,11,0.15);
+    border: 1px solid rgba(245,158,11,0.35);
+  }
+  .leave-avatar.ended-leave {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    opacity: 0.6;
+  }
+
+  .leave-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 8px; border-radius: 20px;
+    font-size: 10px; font-family: 'DM Mono', monospace; font-weight: 600;
+  }
+  .leave-badge.active {
+    background: rgba(245,158,11,0.15);
+    color: var(--amber);
+    border: 1px solid rgba(245,158,11,0.35);
+  }
+  .leave-badge.ended {
+    background: var(--surface3);
+    color: var(--text3);
+    border: 1px solid var(--border);
+  }
+
+  /* Leave status badge on waiter name */
+  .leave-name-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(245,158,11,0.12);
+    color: var(--amber);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 20px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  /* waiter row dimming when on leave */
+  .waiter-row.on-leave-today { opacity: 0.6; }
 </style>
 </head>
 <body>
@@ -1865,6 +1955,9 @@ window.dispatchEvent(new Event('fbReady'));
     </div>
     <div class="nav-item" onclick="showPage('attendance')" id="nav-attendance" style="display:none">
       <span class="icon">📅</span> Attendance
+    </div>
+    <div class="nav-item" onclick="showPage('leave')" id="nav-leave" style="display:none">
+      <span class="icon">🏖</span> Leave (Chhuti)
     </div>
     <div class="nav-item" onclick="showPage('activity-logs')" id="nav-activity-logs" style="display:none">
       <span class="icon">📋</span> Activity Logs
@@ -2215,6 +2308,7 @@ window.dispatchEvent(new Event('fbReady'));
       <span style="font-size:12px;color:var(--text3);font-family:'DM Mono',monospace">LEGEND:</span>
       <span class="att-legend att-present-legend">✓ Present — tips apply</span>
       <span class="att-legend att-absent-legend">✕ Absent — tips waived</span>
+      <span class="att-legend" style="background:rgba(245,158,11,0.1);color:var(--amber);border:1px solid rgba(245,158,11,0.25)">🏖 On Leave — tips waived (manage in Leave section)</span>
     </div>
 
     <div class="card" style="padding:0;overflow:hidden">
@@ -2225,6 +2319,35 @@ window.dispatchEvent(new Event('fbReady'));
     <div class="card mt-6" id="attSummaryCard" style="display:none">
       <div class="card-title">Absence Summary — This Week</div>
       <div id="attSummaryBody"></div>
+    </div>
+  </div>
+
+  <!-- ADMIN: LEAVE MANAGEMENT -->
+  <div class="page" id="page-leave">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Leave Management (Chhuti)</div>
+        <div class="section-sub">Assign, edit, and end staff leaves — leave days are automatically treated as absent</div>
+      </div>
+      <button class="btn btn-primary" onclick="showAddLeaveModal()">+ Assign Leave</button>
+    </div>
+
+    <!-- Active Leaves -->
+    <div class="card" style="margin-bottom:24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div class="card-title" style="margin-bottom:0">🏖 Currently On Leave</div>
+        <span id="leaveActiveCount" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3)"></span>
+      </div>
+      <div id="leaveActiveList"></div>
+    </div>
+
+    <!-- Leave History -->
+    <div class="card" style="padding:0">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Leave History</div>
+        <span id="leaveHistoryCount" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3)"></span>
+      </div>
+      <div id="leaveHistoryList" style="max-height:500px;overflow-y:auto"></div>
     </div>
   </div>
   <!-- ADMIN: ACTIVITY LOGS (admin-only) -->
@@ -2649,6 +2772,79 @@ window.dispatchEvent(new Event('fbReady'));
   </div>
 </div>
 
+<!-- ADD / EDIT LEAVE MODAL -->
+<div class="modal-overlay" id="leaveModal">
+  <div class="modal" style="width:480px">
+    <div class="modal-title" id="leaveModalTitle" style="display:flex;align-items:center;gap:10px">
+      <span>🏖</span> Assign Leave (Chhuti)
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.6">
+      Leave days are automatically treated as absent — no tip will be counted during this period.
+    </div>
+
+    <div class="form-group">
+      <label>Staff / Waiter</label>
+      <select id="leaveWaiterId" onchange="onLeaveWaiterChange()">
+        <option value="">— select staff member —</option>
+      </select>
+    </div>
+
+    <!-- On-leave warning if already on leave -->
+    <div id="leaveAlreadyWarn" style="display:none;margin-bottom:14px" class="warn-banner">
+      <span>⚠</span> <span id="leaveAlreadyWarnMsg">This staff member already has an active leave.</span>
+    </div>
+
+    <div class="grid g2 gap-3" style="margin-bottom:16px">
+      <div class="form-group" style="margin-bottom:0">
+        <label>Start Date</label>
+        <input type="date" id="leaveStartDate" />
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>End Date <span style="font-size:10px;color:var(--text3)">(optional)</span></label>
+        <input type="date" id="leaveEndDate" />
+        <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:5px">
+          Leave blank = open-ended (until manually ended)
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Note <span style="font-size:10px;color:var(--text3)">(optional)</span></label>
+      <input type="text" id="leaveNote" placeholder="e.g. Annual leave, Medical leave…" />
+    </div>
+
+    <div id="leaveModalError" style="display:none" class="warn-banner">
+      <span>✕</span> <span id="leaveModalErrorMsg">Please fill required fields.</span>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('leaveModal')">Cancel</button>
+      <button class="btn btn-primary" id="leaveSaveBtn" onclick="saveLeave()">🏖 Assign Leave</button>
+    </div>
+  </div>
+</div>
+
+<!-- END LEAVE MODAL -->
+<div class="modal-overlay" id="endLeaveModal">
+  <div class="modal" style="width:420px">
+    <div class="modal-title" style="display:flex;align-items:center;gap:10px">
+      <span>✓</span> End Leave & Return to Duty
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">
+      <strong id="endLeaveWaiterName" style="color:var(--green)"></strong> will be marked back on duty.
+      Normal tip calculations will resume from today.
+    </div>
+    <div class="info-banner" style="margin-bottom:16px">
+      <span>◈</span>
+      <span>Leave period: <span id="endLeavePeriod" style="font-family:'DM Mono',monospace;color:var(--accent2)"></span></span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('endLeaveModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmEndLeave()" style="background:rgba(34,211,165,0.15);border-color:rgba(34,211,165,0.4);color:var(--green)">✓ Back to Duty</button>
+    </div>
+  </div>
+</div>
+
 <!-- ADD USER MODAL -->
 <div class="modal-overlay" id="addUserModal">
   <div class="modal" style="width:440px">
@@ -2838,7 +3034,7 @@ async function load() {
     const data = await window._fbLoadData();
     if (data) {
       const { _passcode, ...rest } = data;
-      store = { withdrawals: { pickup:0, hk:0, wp:0 }, deleted_waiters: [], attendance: {}, ...rest };
+      store = { withdrawals: { pickup:0, hk:0, wp:0 }, deleted_waiters: [], attendance: {}, leaves: [], ...rest };
       if (_passcode) _cachedPasscode = _passcode;
     }
   } catch (e) {
@@ -2912,6 +3108,7 @@ function startRealtimeListeners() {
   if (window._fbStartUsersListener)    window._fbStartUsersListener();
   if (window._fbStartPasscodeListener) window._fbStartPasscodeListener();
   if (window._fbStartLogsListener)     window._fbStartLogsListener();
+  if (window._fbStartLeavesListener)   window._fbStartLeavesListener();
 }
 
 // ═══════════════════════════════════════════════
@@ -3528,6 +3725,7 @@ function renderAll() {
   renderCollectionWaiters();
   renderWithdrawal();
   renderHistory();
+  if (document.getElementById('page-leave')?.classList.contains('active')) renderLeave();
   // Re-apply mode UI after every render (dynamic elements like delete buttons)
   if (typeof applyModeUI === 'function') applyModeUI();
 }
@@ -3629,20 +3827,24 @@ function renderDashboard() {
     const isDefaulter = pending > 100;
     if (isDefaulter) defaulters++;
     const absentTodayDash = isWaiterAbsent(w.id, todayStrDash);
-    const statusBadge = absentTodayDash
-      ? `<span class="badge" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,91,106,0.3)">Absent Today</span>`
-      : isDefaulter
-        ? `<span class="badge badge-red">High Pending</span>`
-        : w.advance > 0
-          ? `<span class="badge badge-green">In Advance</span>`
-          : `<span class="badge badge-blue">Clear</span>`;
+    const onLeaveTodayDash = isWaiterOnLeave(w.id, todayStrDash);
+    const statusBadge = onLeaveTodayDash
+      ? `<span class="badge" style="background:rgba(245,158,11,0.15);color:var(--amber);border:1px solid rgba(245,158,11,0.35)">🏖 On Leave</span>`
+      : absentTodayDash
+        ? `<span class="badge" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,91,106,0.3)">Absent Today</span>`
+        : isDefaulter
+          ? `<span class="badge badge-red">High Pending</span>`
+          : w.advance > 0
+            ? `<span class="badge badge-green">In Advance</span>`
+            : `<span class="badge badge-blue">Clear</span>`;
 
     // Find the most recent collection transaction for this waiter
     const lastTxn = store.transactions.find(t => t.type === 'collection' && t.waiterId === w.id);
     const lastPaidAmt = lastTxn ? `<span class="text-green">₹${(lastTxn.amount||0).toLocaleString('en-IN')}</span>` : '<span class="text-muted">—</span>';
+    const leaveBadgeDash = onLeaveTodayDash ? `<span class='leave-name-badge'>🏖</span>` : '';
 
-    return `<tr class="waiter-row${absentTodayDash ? ' att-absent-today' : ''}">
-      <td>${w.name}${absentTodayDash ? '<span class=\'att-absent-badge\'>✕ Absent</span>' : ''}</td>
+    return `<tr class="waiter-row${onLeaveTodayDash ? ' on-leave-today' : (absentTodayDash ? ' att-absent-today' : '')}">
+      <td>${w.name}${leaveBadgeDash}${(!onLeaveTodayDash && absentTodayDash) ? '<span class=\'att-absent-badge\'>✕ Absent</span>' : ''}</td>
       <td class="mono">${formatDate(w.joinDate)}</td>
       <td class="mono">${w.lastPaidDate ? formatDate(w.lastPaidDate) : '<span class="badge badge-red">Never</span>'}</td>
       <td class="mono">${lastPaidAmt}</td>
@@ -3667,9 +3869,13 @@ function renderWaiters() {
     const pending = (w.pending_pickup||0)+(w.pending_hk||0)+(w.pending_wp||0);
     const isDefaulter = pending > 100;
     const absentToday = isWaiterAbsent(w.id, todayForAtt);
-    return `<tr class="waiter-row${absentToday ? ' att-absent-today' : ''}">
+    const onLeaveToday = isWaiterOnLeave(w.id, todayForAtt);
+    const leaveBadge = onLeaveToday
+      ? `<span class='leave-name-badge'>🏖 On Leave</span>`
+      : (absentToday ? `<span class='att-absent-badge'>✕ Absent Today</span>` : '');
+    return `<tr class="waiter-row${onLeaveToday ? ' on-leave-today' : (absentToday ? ' att-absent-today' : '')}">
       <td class="mono text-muted">${i + 1}</td>
-      <td>${w.name}${absentToday ? '<span class=\'att-absent-badge\'>✕ Absent Today</span>' : ''}</td>
+      <td>${w.name}${leaveBadge}</td>
       <td class="mono">${formatDate(w.joinDate)}</td>
       <td class="mono">${w.lastPaidDate ? formatDate(w.lastPaidDate) : '<span class="badge badge-red">Never</span>'}</td>
       <td class="mono text-green">₹${(w.paid||0).toLocaleString('en-IN')}</td>
@@ -3713,16 +3919,21 @@ function updateCollectionPreview() {
   const sim = simulatePayment(waiter, amount);
   const todayStrColl = today();
   const waiterAbsentToday = isWaiterAbsent(waiter.id, todayStrColl);
+  const waiterOnLeaveToday = isWaiterOnLeave(waiter.id, todayStrColl);
 
   const noPayment = amount === 0;
 
   preview.innerHTML = `
     <div class="card">
-      ${waiterAbsentToday ? `
+      ${waiterOnLeaveToday ? `
+      <div class="warn-banner" style="background:rgba(245,158,11,0.08);border-color:rgba(245,158,11,0.3);color:var(--amber);margin-bottom:14px">
+        <span>🏖</span>
+        <span><strong>${waiter.name}</strong> is currently <strong>On Leave (Chhuti)</strong> — no tip contribution is due for today.</span>
+      </div>` : (waiterAbsentToday ? `
       <div class="warn-banner" style="background:rgba(255,91,106,0.08);border-color:rgba(255,91,106,0.3);color:var(--red);margin-bottom:14px">
         <span>✕</span>
         <span><strong>${waiter.name}</strong> is marked <strong>Absent Today</strong> — no tip contribution is due for today.</span>
-      </div>` : ''}
+      </div>` : '')}
       <div class="info-banner">
         <span>◈</span>
         <span>Auto-calculated for <strong>${sim.days} day${sim.days !== 1 ? 's' : ''}</strong> 
@@ -4020,7 +4231,7 @@ function showPage(page) {
     dashboard: 'Dashboard', waiters: 'Waiters', collection: 'Collection',
     withdrawal: 'Withdrawal', history: 'History', rules: 'Rules',
     'staff-dashboard': 'My Dashboard', users: 'User Management', attendance: 'Attendance',
-    'activity-logs': 'Activity Logs', reports: 'Reports'
+    'activity-logs': 'Activity Logs', reports: 'Reports', leave: 'Leave Management (Chhuti)'
   };
   document.getElementById('topbarTitle').textContent = labels[page] || page;
 
@@ -4835,21 +5046,23 @@ function renderAttendance() {
       <td class="att-name-cell">${w.name}</td>`;
     days.forEach(({ date }) => {
       const isFuture = date > todayStr;
-      const isAbsent = isWaiterAbsent(w.id, date);
+      const isOnLeave = isWaiterOnLeave(w.id, date);
+      const isAbsent = !isOnLeave && isWaiterAbsent(w.id, date); // raw absent (not from leave)
       const isToday = date === todayStr;
 
       let cls, label;
-      if (isFuture)      { cls = 'att-future'; label = '—'; }
-      else if (isAbsent) { cls = 'att-absent';  label = '✕ Absent'; }
-      else               { cls = 'att-present'; label = '✓ Present'; }
+      if (isFuture)        { cls = 'att-future'; label = '—'; }
+      else if (isOnLeave)  { cls = 'att-absent';  label = '🏖 Leave'; }
+      else if (isAbsent)   { cls = 'att-absent';  label = '✕ Absent'; }
+      else                 { cls = 'att-present'; label = '✓ Present'; }
 
-      const clickable = !isFuture && isAdmin;
+      const clickable = !isFuture && isAdmin && !isOnLeave; // leave days can't be toggled directly
       html += `<td class="${isToday ? 'att-today-cell' : ''}">
         <button
           class="att-toggle ${cls}${!clickable ? ' att-readonly' : ''}"
           id="att-${w.id}-${date}"
           ${clickable ? `onclick="attToggleGuarded('${w.id}','${date}',this)"` : ''}
-          title="${isFuture ? 'Future date' : isAdmin ? 'Click to toggle' : 'View only'}"
+          title="${isFuture ? 'Future date' : isOnLeave ? 'On leave — manage in Leave section' : isAdmin ? 'Click to toggle' : 'View only'}"
         >${label}</button>
       </td>`;
     });
@@ -4901,6 +5114,319 @@ function renderAttSummary(days, todayStr) {
 
 // ── Hook showPage for attendance ──
 // (This hook is additive — the auth section already wraps showPage)
+
+// ═══════════════════════════════════════════════
+//  LEAVE MANAGEMENT SYSTEM
+//  Leaves are stored in store.leaves[]
+//  A leave record: { id, waiterId, waiterName, startDate, endDate|null,
+//                    active:bool, note, createdAt, endedAt|null }
+//
+//  Integration with absent logic:
+//    isWaiterOnLeave(waiterId, dateStr) → bool
+//    isWaiterAbsent() is patched to also return true for leave days
+//    calculateMultiDayDues() already skips absent days — leave days follow automatically
+// ═══════════════════════════════════════════════
+
+// ── Helper: check if a waiter is on leave for a given date ──
+function isWaiterOnLeave(waiterId, dateStr) {
+  const leaves = store.leaves || [];
+  return leaves.some(lv => {
+    if (lv.waiterId !== waiterId) return false;
+    if (!lv.active) return false;             // ended leave — skip
+    if (dateStr < lv.startDate) return false;  // before leave starts — skip
+    if (lv.endDate && dateStr > lv.endDate) return false; // after end date — skip
+    return true;
+  });
+}
+
+// ── Patch isWaiterAbsent to also cover leave days ──
+// The original function checks store.attendance only.
+// We extend it here so ALL existing logic (dues, dashboard, collection preview)
+// automatically treats leave days identically to absent days.
+const _origIsWaiterAbsent = isWaiterAbsent;
+isWaiterAbsent = function(waiterId, dateStr) {
+  return _origIsWaiterAbsent(waiterId, dateStr) || isWaiterOnLeave(waiterId, dateStr);
+};
+
+// ── Get the active leave record for a waiter (or null) ──
+function getActiveLeave(waiterId) {
+  return (store.leaves || []).find(lv => lv.waiterId === waiterId && lv.active) || null;
+}
+
+// ── Firebase persistence helpers ──
+async function saveLeaveRecord(leave) {
+  setSyncDotAmber();
+  try {
+    window._fbMarkWrite(1);
+    await window._fbSaveLeave(leave);
+    setSyncDotGreen();
+  } catch(e) {
+    window._fbLocalWrite = 0;
+    console.error('Leave save error:', e);
+    showToast('⚠ Cloud save failed', 'warning');
+    setSyncDotRed();
+  }
+}
+
+// ── Modal state ──
+let _leaveEditingId = null; // null = new leave, string = editing existing leave id
+let _endLeaveTargetId = null;
+
+// ── Open Add Leave modal ──
+function showAddLeaveModal() {
+  if (!isAdminLoggedIn()) { showToast('⚠ Only admins can assign leave', 'warning'); return; }
+  _leaveEditingId = null;
+  document.getElementById('leaveModalTitle').innerHTML = '<span>🏖</span> Assign Leave (Chhuti)';
+  document.getElementById('leaveSaveBtn').textContent = '🏖 Assign Leave';
+  document.getElementById('leaveModalError').style.display = 'none';
+  document.getElementById('leaveAlreadyWarn').style.display = 'none';
+
+  // Populate waiter dropdown
+  const sel = document.getElementById('leaveWaiterId');
+  sel.innerHTML = '<option value="">— select staff member —</option>';
+  store.waiters.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w.id;
+    opt.textContent = w.name + (getActiveLeave(w.id) ? ' (on leave)' : '');
+    sel.appendChild(opt);
+  });
+  sel.value = '';
+
+  // Default start date = today
+  document.getElementById('leaveStartDate').value = today();
+  document.getElementById('leaveEndDate').value = '';
+  document.getElementById('leaveNote').value = '';
+  openModal('leaveModal');
+}
+
+// ── Open Edit Leave modal ──
+function showEditLeaveModal(leaveId) {
+  if (!isAdminLoggedIn()) { showToast('⚠ Only admins can edit leave', 'warning'); return; }
+  const lv = (store.leaves || []).find(l => l.id === leaveId);
+  if (!lv) return;
+  _leaveEditingId = leaveId;
+  document.getElementById('leaveModalTitle').innerHTML = '<span>✎</span> Edit Leave';
+  document.getElementById('leaveSaveBtn').textContent = '✎ Save Changes';
+  document.getElementById('leaveModalError').style.display = 'none';
+  document.getElementById('leaveAlreadyWarn').style.display = 'none';
+
+  const sel = document.getElementById('leaveWaiterId');
+  sel.innerHTML = '<option value="">— select staff member —</option>';
+  store.waiters.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w.id;
+    opt.textContent = w.name;
+    sel.appendChild(opt);
+  });
+  sel.value = lv.waiterId;
+  sel.disabled = true; // can't change who the leave belongs to
+
+  document.getElementById('leaveStartDate').value = lv.startDate;
+  document.getElementById('leaveEndDate').value = lv.endDate || '';
+  document.getElementById('leaveNote').value = lv.note || '';
+  openModal('leaveModal');
+}
+
+function onLeaveWaiterChange() {
+  const wId = document.getElementById('leaveWaiterId').value;
+  const warn = document.getElementById('leaveAlreadyWarn');
+  const msg  = document.getElementById('leaveAlreadyWarnMsg');
+  if (!wId) { warn.style.display = 'none'; return; }
+  const existing = getActiveLeave(wId);
+  if (existing) {
+    msg.textContent = `${store.waiters.find(w=>w.id===wId)?.name||wId} already has an active leave starting ${formatDate(existing.startDate)}.`;
+    warn.style.display = 'flex';
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+// ── Save leave (add or edit) ──
+function saveLeave() {
+  const errEl  = document.getElementById('leaveModalError');
+  const errMsg = document.getElementById('leaveModalErrorMsg');
+  const show   = (m) => { errMsg.textContent = m; errEl.style.display = 'flex'; };
+
+  const waiterId  = document.getElementById('leaveWaiterId').value;
+  const startDate = document.getElementById('leaveStartDate').value;
+  const endDate   = document.getElementById('leaveEndDate').value || null;
+  const note      = document.getElementById('leaveNote').value.trim();
+
+  if (!waiterId)  return show('Please select a staff member.');
+  if (!startDate) return show('Please enter a start date.');
+  if (endDate && endDate < startDate) return show('End date cannot be before start date.');
+
+  const waiter = store.waiters.find(w => w.id === waiterId);
+  if (!waiter) return show('Staff member not found.');
+
+  store.leaves = store.leaves || [];
+
+  if (_leaveEditingId) {
+    // Edit existing leave
+    const idx = store.leaves.findIndex(l => l.id === _leaveEditingId);
+    if (idx === -1) return show('Leave record not found.');
+    const updated = { ...store.leaves[idx], startDate, endDate, note, waiterName: waiter.name };
+    store.leaves[idx] = updated;
+    saveLeaveRecord(updated);
+    pushLog('leave', `Edited leave for "${waiter.name}" — ${formatDate(startDate)} → ${endDate ? formatDate(endDate) : 'open-ended'}`);
+    showToast(`Leave updated for ${waiter.name}`, 'success');
+  } else {
+    // New leave — check if already on leave
+    const existing = getActiveLeave(waiterId);
+    if (existing) {
+      return show(`${waiter.name} already has an active leave. End it first or edit it.`);
+    }
+    const newLeave = {
+      id:          genId(),
+      waiterId,
+      waiterName:  waiter.name,
+      startDate,
+      endDate,
+      active:      true,
+      note,
+      createdAt:   new Date().toISOString(),
+      endedAt:     null
+    };
+    store.leaves.unshift(newLeave);
+    saveLeaveRecord(newLeave);
+    pushLog('leave', `Assigned leave to "${waiter.name}" — from ${formatDate(startDate)}${endDate ? ' to ' + formatDate(endDate) : ' (open-ended)'}`);
+    showToast(`${waiter.name} marked on leave from ${formatDate(startDate)}`, 'success');
+  }
+
+  // Re-enable waiter select in case it was disabled (edit mode)
+  document.getElementById('leaveWaiterId').disabled = false;
+  closeModal('leaveModal');
+  renderLeave();
+  renderAll();
+}
+
+// ── Prompt End Leave ──
+function promptEndLeave(leaveId) {
+  if (!isAdminLoggedIn()) { showToast('⚠ Only admins can end leave', 'warning'); return; }
+  const lv = (store.leaves || []).find(l => l.id === leaveId);
+  if (!lv) return;
+  _endLeaveTargetId = leaveId;
+  document.getElementById('endLeaveWaiterName').textContent = lv.waiterName;
+  document.getElementById('endLeavePeriod').textContent =
+    formatDate(lv.startDate) + ' → ' + (lv.endDate ? formatDate(lv.endDate) : 'ongoing');
+  openModal('endLeaveModal');
+}
+
+// ── Confirm End Leave ──
+function confirmEndLeave() {
+  const lv = (store.leaves || []).find(l => l.id === _endLeaveTargetId);
+  if (!lv) { closeModal('endLeaveModal'); return; }
+
+  const todayStr = today();
+  const updated  = { ...lv, active: false, endDate: todayStr, endedAt: new Date().toISOString() };
+  const idx = store.leaves.findIndex(l => l.id === _endLeaveTargetId);
+  store.leaves[idx] = updated;
+
+  saveLeaveRecord(updated);
+  pushLog('leave', `Ended leave for "${lv.waiterName}" — returned to duty on ${formatDate(todayStr)}`);
+  showToast(`${lv.waiterName} is back on duty — normal tip calculation resumes`, 'success');
+
+  _endLeaveTargetId = null;
+  closeModal('endLeaveModal');
+  renderLeave();
+  renderAll();
+}
+
+// ── Render Leave page ──
+function renderLeave() {
+  const leaves = store.leaves || [];
+  const activeLeaves  = leaves.filter(l => l.active);
+  const endedLeaves   = leaves.filter(l => !l.active);
+  const todayStr = today();
+
+  // Active leaves section
+  const activeCountEl = document.getElementById('leaveActiveCount');
+  const activeListEl  = document.getElementById('leaveActiveList');
+  if (!activeCountEl || !activeListEl) return;
+
+  activeCountEl.textContent = `${activeLeaves.length} staff on leave`;
+
+  if (!activeLeaves.length) {
+    activeListEl.innerHTML = `
+      <div class="empty-state" style="padding:40px 20px">
+        <div class="empty-icon">🏖</div>
+        <div class="empty-text">No staff currently on leave.<br>
+          <span style="font-size:11px;font-family:'DM Mono',monospace;margin-top:6px;display:block">Use "Assign Leave" to put a staff member on leave.</span>
+        </div>
+      </div>`;
+  } else {
+    activeListEl.innerHTML = activeLeaves.map(lv => {
+      const isStarted = lv.startDate <= todayStr;
+      const daysOnLeave = isStarted
+        ? daysBetween(lv.startDate, todayStr, true).length
+        : 0;
+      const statusLabel = !isStarted
+        ? `<span style="color:var(--accent2);font-family:'DM Mono',monospace;font-size:12px">Starts ${formatDate(lv.startDate)}</span>`
+        : `<span style="color:var(--amber);font-family:'DM Mono',monospace;font-size:12px">${daysOnLeave} day${daysOnLeave !== 1 ? 's' : ''} on leave</span>`;
+
+      return `
+      <div class="leave-card">
+        <div class="leave-avatar active-leave">🏖</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+            <span style="font-weight:600;font-size:14px;color:var(--text)">${lv.waiterName}</span>
+            <span class="leave-badge active">● ON LEAVE</span>
+          </div>
+          <div style="font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;margin-bottom:4px">
+            ${formatDate(lv.startDate)} → ${lv.endDate ? formatDate(lv.endDate) : '<span style="color:var(--amber)">Open-ended</span>'}
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            ${statusLabel}
+            ${lv.note ? `<span style="font-size:11px;color:var(--text3)">📝 ${lv.note}</span>` : ''}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+          <button class="btn btn-ghost btn-sm" onclick="showEditLeaveModal('${lv.id}')">✎ Edit</button>
+          <button class="btn btn-sm" style="background:rgba(34,211,165,0.12);border:1px solid rgba(34,211,165,0.3);color:var(--green);padding:5px 10px;font-size:11px" onclick="promptEndLeave('${lv.id}')">✓ Back to Duty</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // History section
+  const histCountEl = document.getElementById('leaveHistoryCount');
+  const histListEl  = document.getElementById('leaveHistoryList');
+  if (!histCountEl || !histListEl) return;
+
+  histCountEl.textContent = `${endedLeaves.length} past record${endedLeaves.length !== 1 ? 's' : ''}`;
+
+  if (!endedLeaves.length) {
+    histListEl.innerHTML = `
+      <div style="text-align:center;padding:40px;color:var(--text3);font-size:13px">
+        No past leave records yet.
+      </div>`;
+  } else {
+    histListEl.innerHTML = endedLeaves.map(lv => {
+      const duration = lv.startDate && lv.endDate
+        ? daysBetween(lv.startDate, lv.endDate, true).length
+        : null;
+      return `
+      <div class="leave-card">
+        <div class="leave-avatar ended-leave">🏖</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+            <span style="font-weight:600;font-size:14px;color:var(--text2)">${lv.waiterName}</span>
+            <span class="leave-badge ended">ENDED</span>
+          </div>
+          <div style="font-size:12px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:3px">
+            ${formatDate(lv.startDate)} → ${lv.endDate ? formatDate(lv.endDate) : '—'}
+            ${duration ? `<span style="margin-left:8px;color:var(--text3)">(${duration} day${duration !== 1 ? 's' : ''})</span>` : ''}
+          </div>
+          ${lv.note ? `<div style="font-size:11px;color:var(--text3)">📝 ${lv.note}</div>` : ''}
+        </div>
+        ${lv.endedAt ? `<div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;white-space:nowrap">Ended ${formatDate(lv.endedAt.substring(0,10))}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+}
+
+// ── Show leave badge on waiter rows — called from renderWaiters and renderDashboard ──
+// (Integrated into existing render patches below)
 
 // Wait for the Firebase module script to finish initializing before running init()
 if (window._fbReady) {
@@ -5017,7 +5543,7 @@ function applyGuestUI() {
   // Nav: only Dashboard for guest
   const el = document.getElementById('nav-dashboard'); if (el) el.style.display = '';
   ['nav-staff-dashboard','nav-waiters','nav-collection',
-   'nav-withdrawal','nav-history','nav-rules','nav-users','nav-attendance','nav-activity-logs','nav-reports'].forEach(id => {
+   'nav-withdrawal','nav-history','nav-rules','nav-users','nav-attendance','nav-activity-logs','nav-reports','nav-leave'].forEach(id => {
     const e = document.getElementById(id); if (e) e.style.display = 'none';
   });
 
@@ -5050,7 +5576,7 @@ function applyRoleUI() {
   if (signInBtn) signInBtn.style.display = 'none';
 
   ['nav-dashboard','nav-staff-dashboard','nav-waiters','nav-collection',
-   'nav-withdrawal','nav-history','nav-rules','nav-users','nav-attendance','nav-activity-logs','nav-reports'].forEach(id => {
+   'nav-withdrawal','nav-history','nav-rules','nav-users','nav-attendance','nav-activity-logs','nav-reports','nav-leave'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = 'none';
   });
   ['btnExportCsv','btnImportCsv','btnChangePasscode'].forEach(id => {
@@ -5059,7 +5585,7 @@ function applyRoleUI() {
 
   if (role === 'admin') {
     ['nav-dashboard','nav-waiters','nav-collection','nav-withdrawal',
-     'nav-history','nav-rules','nav-users','nav-attendance','nav-activity-logs','nav-reports'].forEach(id => {
+     'nav-history','nav-rules','nav-users','nav-attendance','nav-activity-logs','nav-reports','nav-leave'].forEach(id => {
       const el = document.getElementById(id); if (el) el.style.display = '';
     });
     ['btnExportCsv','btnImportCsv','btnChangePasscode'].forEach(id => {
@@ -5102,6 +5628,7 @@ renderAll = function() {
   if (document.getElementById('page-attendance')?.classList.contains('active'))      renderAttendance();
   if (document.getElementById('page-activity-logs')?.classList.contains('active'))   renderActivityLogs();
   if (document.getElementById('page-reports')?.classList.contains('active'))         renderReports();
+  if (document.getElementById('page-leave')?.classList.contains('active'))           renderLeave();
 };
 
 // ── Hook showPage ──
@@ -5112,6 +5639,7 @@ showPage = function(page) {
   if (page === 'staff-dashboard') renderStaffDashboard();
   if (page === 'attendance')      renderAttendance();
   if (page === 'activity-logs')   renderActivityLogs();
+  if (page === 'leave')           renderLeave();
 };
 
 // ── Extend init — guest by default, no forced login ──
