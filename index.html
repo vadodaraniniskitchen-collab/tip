@@ -1795,12 +1795,130 @@ window.dispatchEvent(new Event('fbReady'));
     border-color: rgba(108,99,255,0.5);
   }
 
+  /* ─── PERMISSION TOGGLES ─── */
+  .perm-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  @media (max-width: 580px) { .perm-group { grid-template-columns: 1fr; } }
+
+  .perm-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    transition: border-color 0.15s, background 0.15s;
+    min-height: 52px;
+  }
+  .perm-row:hover { border-color: var(--border2); }
+  .perm-row.perm-on  { border-color: rgba(34,211,165,0.35); background: rgba(34,211,165,0.05); }
+  .perm-row.perm-off { opacity: 0.6; }
+
+  .perm-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    line-height: 1.3;
+    flex: 1;
+    min-width: 0;
+  }
+  .perm-label small {
+    display: block;
+    font-size: 10px;
+    color: var(--text3);
+    font-family: 'DM Mono', monospace;
+    margin-top: 2px;
+    font-weight: 400;
+  }
+
+  /* Toggle switch — pill style */
+  .perm-toggle {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .perm-toggle input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+    z-index: 1;
+  }
+  .perm-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    border-radius: 22px;
+    transition: background 0.2s, border-color 0.2s;
+    pointer-events: none;
+  }
+  .perm-slider::before {
+    content: '';
+    position: absolute;
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--text3);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+  }
+  .perm-toggle input:checked ~ .perm-slider {
+    background: rgba(34,211,165,0.2);
+    border-color: rgba(34,211,165,0.5);
+  }
+  .perm-toggle input:checked ~ .perm-slider::before {
+    transform: translateY(-50%) translateX(18px);
+    background: var(--green);
+  }
+  .perm-toggle input:disabled ~ .perm-slider {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* Permission summary chip in users table */
+  .perm-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    padding: 3px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.15s;
+    white-space: nowrap;
+  }
+  .perm-summary.custom {
+    background: rgba(108,99,255,0.12);
+    color: var(--accent2);
+    border: 1px solid rgba(108,99,255,0.3);
+  }
+  .perm-summary.default {
+    background: var(--surface3);
+    color: var(--text3);
+    border: 1px solid var(--border);
+  }
+  .perm-summary:hover { opacity: 0.8; transform: scale(1.03); }
+
   /* ─── LEAVE MANAGEMENT ─── */
   .leave-card {
     display: flex;
     align-items: flex-start;
-    gap: 16px;
-    padding: 16px 20px;
+    gap: 14px;
+    padding: 14px 18px;
     border-bottom: 1px solid var(--border);
     transition: background 0.15s;
   }
@@ -1808,11 +1926,15 @@ window.dispatchEvent(new Event('fbReady'));
   .leave-card:hover { background: var(--surface2); }
 
   .leave-avatar {
-    width: 40px; height: 40px;
-    border-radius: 12px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
     flex-shrink: 0;
+    margin-top: 2px;
   }
   .leave-avatar.active-leave {
     background: rgba(245,158,11,0.15);
@@ -1821,13 +1943,19 @@ window.dispatchEvent(new Event('fbReady'));
   .leave-avatar.ended-leave {
     background: var(--surface2);
     border: 1px solid var(--border);
-    opacity: 0.6;
+    opacity: 0.5;
   }
 
   .leave-badge {
-    display: inline-flex; align-items: center; gap: 5px;
-    padding: 2px 8px; border-radius: 20px;
-    font-size: 10px; font-family: 'DM Mono', monospace; font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    font-weight: 600;
+    letter-spacing: 0.3px;
   }
   .leave-badge.active {
     background: rgba(245,158,11,0.15);
@@ -1840,22 +1968,31 @@ window.dispatchEvent(new Event('fbReady'));
     border: 1px solid var(--border);
   }
 
-  /* Leave status badge on waiter name */
   .leave-name-badge {
-    display: inline-flex; align-items: center; gap: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
     background: rgba(245,158,11,0.12);
     color: var(--amber);
     border: 1px solid rgba(245,158,11,0.3);
     border-radius: 20px;
-    padding: 2px 8px;
+    padding: 1px 7px;
     font-size: 10px;
     font-family: 'DM Mono', monospace;
     margin-left: 6px;
     vertical-align: middle;
   }
 
-  /* waiter row dimming when on leave */
+  .leave-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex-shrink: 0;
+    align-items: flex-end;
+  }
+
   .waiter-row.on-leave-today { opacity: 0.6; }
+
 </style>
 </head>
 <body>
@@ -2012,6 +2149,28 @@ window.dispatchEvent(new Event('fbReady'));
 
   <!-- DASHBOARD -->
   <div class="page active" id="page-dashboard">
+
+    <!-- ── Financial Date Filter (admin / captain only — shown by JS) ── -->
+    <div id="dashFilterBar" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 18px;margin-bottom:20px;flex-wrap:wrap;align-items:center;gap:12px">
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;white-space:nowrap;flex-shrink:0">📅 View</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex:1" id="dashFilterBtns">
+        <button class="rpt-period-btn active" id="dashBtnToday"    onclick="setDashFilter('today')">Today</button>
+        <button class="rpt-period-btn"        id="dashBtnCustom"   onclick="setDashFilter('custom')">Pick Date</button>
+        <button class="rpt-period-btn"        id="dashBtnLifetime" onclick="setDashFilter('lifetime')">All Time</button>
+        <div id="dashCustomDate" style="display:none;align-items:center;gap:8px;margin-left:4px">
+          <input type="date" id="dashDatePicker" onchange="onDashDatePickerChange()" style="width:150px;padding:6px 10px;font-size:12px;font-family:'DM Mono',monospace" />
+        </div>
+      </div>
+      <span id="dashFilterLabel" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent2);white-space:nowrap;flex-shrink:0"></span>
+    </div>
+
+    <!-- ── Today-only notice for non-admin/captain ── -->
+    <div id="dashTodayBadge" style="display:none;margin-bottom:16px">
+      <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(108,99,255,0.1);border:1px solid rgba(108,99,255,0.25);border-radius:20px;padding:5px 14px;font-family:'DM Mono',monospace;font-size:11px;color:var(--accent2)">
+        📅 Today's financial data
+      </span>
+    </div>
+
     <div class="grid g5 mb-4" id="dashStats"></div>
     <div class="grid g3 mt-4" id="dashCats"></div>
     <div class="card mt-6">
@@ -2126,6 +2285,18 @@ window.dispatchEvent(new Event('fbReady'));
         <div class="section-sub">Withdraw from category balance</div>
       </div>
     </div>
+
+    <!-- Captain restricted view: balance only, no form/history -->
+    <div id="captainWdView" style="display:none">
+      <div class="info-banner" style="margin-bottom:20px">
+        <span>ℹ</span>
+        <span>Available withdrawal balances (lifetime totals). Contact Admin to process withdrawals.</span>
+      </div>
+      <div class="grid g3" id="captainWdBalCards" style="max-width:900px"></div>
+    </div>
+
+    <!-- Full withdrawal form — admin only -->
+    <div id="adminWdView">
     <div class="grid g2 gap-3">
       <div class="card">
         <div class="form-group">
@@ -2161,6 +2332,7 @@ window.dispatchEvent(new Event('fbReady'));
       <div>
         <div class="grid g3" style="grid-template-columns:1fr" id="wdCatCards"></div>
       </div>
+    </div>
     </div>
   </div>
 
@@ -2235,6 +2407,72 @@ window.dispatchEvent(new Event('fbReady'));
         </div>
       </div>
     </div>
+
+    <!-- Absence & Leave Policy Card -->
+    <div class="card mt-6">
+      <div class="card-title" style="display:flex;align-items:center;gap:8px">
+        <span>📋</span> Absence &amp; Leave Policy
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:0">
+
+        <!-- Header row -->
+        <div style="background:var(--surface2);padding:10px 14px;font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid var(--border);border-right:1px solid var(--border)">Situation</div>
+        <div style="background:var(--surface2);padding:10px 14px;font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid var(--border);border-right:1px solid var(--border)">Monday</div>
+        <div style="background:var(--surface2);padding:10px 14px;font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid var(--border);border-right:1px solid var(--border)">Tue – Fri</div>
+        <div style="background:var(--surface2);padding:10px 14px;font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid var(--border)">Sat &amp; Sun</div>
+
+        <!-- Present row -->
+        <div style="padding:11px 14px;font-size:13px;font-weight:500;color:var(--text);border-bottom:1px solid var(--border);border-right:1px solid var(--border);display:flex;align-items:center;gap:7px">
+          <span style="color:var(--green)">✓</span> Present
+        </div>
+        <div style="padding:11px 14px;font-size:12px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);font-family:'DM Mono',monospace;line-height:1.7">
+          <span class="wp-color">WP ₹10</span><br><span class="pickup-color">PU ₹10</span>
+        </div>
+        <div style="padding:11px 14px;font-size:12px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);font-family:'DM Mono',monospace;line-height:1.7">
+          <span class="pickup-color">PU ₹10</span>
+        </div>
+        <div style="padding:11px 14px;font-size:12px;border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;line-height:1.7">
+          <span class="pickup-color">PU ₹20</span><br><span class="hk-color">HK ₹20</span>
+        </div>
+
+        <!-- Absent row -->
+        <div style="padding:11px 14px;font-size:13px;font-weight:500;color:var(--text);border-bottom:1px solid var(--border);border-right:1px solid var(--border);display:flex;align-items:center;gap:7px">
+          <span style="color:var(--red)">✕</span> Absent
+        </div>
+        <div style="padding:11px 14px;font-size:12px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);font-family:'DM Mono',monospace;line-height:1.7">
+          <span class="wp-color">WP ₹10</span> <span style="color:var(--text3);font-size:10px">still applies</span><br>
+          <span style="color:var(--text3);font-size:11px">PU waived</span>
+        </div>
+        <div style="padding:11px 14px;font-size:12px;color:var(--text3);border-bottom:1px solid var(--border);border-right:1px solid var(--border);font-family:'DM Mono',monospace">
+          ₹0 — waived
+        </div>
+        <div style="padding:11px 14px;font-size:12px;color:var(--text3);border-bottom:1px solid var(--border);font-family:'DM Mono',monospace">
+          ₹0 — waived
+        </div>
+
+        <!-- On Leave row -->
+        <div style="padding:11px 14px;font-size:13px;font-weight:500;color:var(--text);border-right:1px solid var(--border);display:flex;align-items:center;gap:7px">
+          <span style="color:var(--amber)">🏖</span> On Leave
+        </div>
+        <div style="padding:11px 14px;font-size:12px;color:var(--text3);border-right:1px solid var(--border);font-family:'DM Mono',monospace">
+          ₹0 — exempt
+        </div>
+        <div style="padding:11px 14px;font-size:12px;color:var(--text3);border-right:1px solid var(--border);font-family:'DM Mono',monospace">
+          ₹0 — exempt
+        </div>
+        <div style="padding:11px 14px;font-size:12px;color:var(--text3);font-family:'DM Mono',monospace">
+          ₹0 — exempt
+        </div>
+
+      </div>
+      <div style="margin-top:12px;padding:10px 14px;background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.2);border-radius:var(--radius-sm);font-size:12px;color:var(--text2);line-height:1.7">
+        <strong style="color:var(--amber)">Key rule:</strong>
+        Being absent on a <strong>Monday</strong> does <em>not</em> waive the Wiping (🧽) contribution of ₹10 —
+        only staff on approved Leave are fully exempt from all contributions that day.
+        On all other days (Tue–Sun), being absent waives the full day's dues.
+      </div>
+    </div>
+
     <div class="card mt-6">
       <div class="card-title">Payment Allocation Priority</div>
       <div class="flex gap-3" style="flex-wrap:wrap;margin-bottom:16px">
@@ -2253,7 +2491,8 @@ window.dispatchEvent(new Event('fbReady'));
         4. Wiping is cleared first. The remaining amount is split 50/50 between Housekeeping and Pickup.<br>
         5. If one of HK or Pickup clears fully before using its half-share, the leftover flows to the other.<br>
         6. If payment exceeds total dues, the remainder becomes advance (credit for next payment).<br>
-        7. Last paid date is automatically updated to today.
+        7. Last paid date is automatically updated to today.<br>
+        8. <strong style="color:var(--wp)">Monday absence rule:</strong> If a staff member is marked <em>absent</em> on a Monday, Wiping (₹10) is still counted — only Pickup is waived. Staff on approved <em>Leave</em> are fully exempt from all contributions including Monday Wiping.
       </div>
     </div>
   </div>
@@ -2267,20 +2506,21 @@ window.dispatchEvent(new Event('fbReady'));
     <div class="section-header">
       <div>
         <div class="section-title">User Management</div>
-        <div class="section-sub">Create and manage system users</div>
+        <div class="section-sub">Manage users, roles, and granular permissions</div>
       </div>
       <button class="btn btn-primary" onclick="showAddUserModal()">+ Add User</button>
     </div>
-    <div class="card">
+    <div class="card" style="padding:0;overflow:hidden">
       <div class="table-wrap">
-        <table>
+        <table style="min-width:700px">
           <thead><tr>
-            <th>User ID</th>
-            <th>Display Name</th>
+            <th style="white-space:nowrap">User ID</th>
+            <th>Name</th>
             <th>Role</th>
-            <th>Linked Waiter</th>
+            <th>Linked To</th>
             <th>Status</th>
-            <th>Actions</th>
+            <th>Permissions</th>
+            <th style="min-width:180px">Actions</th>
           </tr></thead>
           <tbody id="usersTableBody"></tbody>
         </table>
@@ -2845,6 +3085,52 @@ window.dispatchEvent(new Event('fbReady'));
   </div>
 </div>
 
+<!-- PERMISSIONS EDITOR MODAL -->
+<div class="modal-overlay" id="permissionsModal">
+  <div class="modal" style="width:600px;max-width:calc(100vw - 32px);max-height:88vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
+
+    <!-- Fixed header -->
+    <div style="padding:22px 28px 18px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div class="modal-title" style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span>🔐</span> <span id="permModalTitle">Permissions</span>
+      </div>
+      <div id="permModalRoleHint" style="font-size:12px;color:var(--text3);font-family:'DM Mono',monospace"></div>
+    </div>
+
+    <!-- Scrollable body -->
+    <div style="flex:1;overflow-y:auto;padding:20px 28px">
+
+      <!-- VIEW PERMISSIONS -->
+      <div style="margin-bottom:24px">
+        <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+          <span>👁</span> Pages &amp; Views
+        </div>
+        <div id="permViewGroup" class="perm-group"></div>
+      </div>
+
+      <!-- ACTION PERMISSIONS -->
+      <div style="margin-bottom:20px">
+        <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+          <span>⚙</span> Actions &amp; Operations
+        </div>
+        <div id="permActionGroup" class="perm-group"></div>
+      </div>
+
+      <!-- RESET STRIP -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <span style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace">Reset all to role defaults</span>
+        <button class="btn btn-ghost btn-sm" onclick="resetPermissionsToDefault()" style="font-size:11px;white-space:nowrap">↺ Reset Defaults</button>
+      </div>
+    </div>
+
+    <!-- Fixed footer -->
+    <div style="padding:16px 28px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;flex-shrink:0;background:var(--surface)">
+      <button class="btn btn-ghost" onclick="closeModal('permissionsModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="savePermissions()">🔐 Save Permissions</button>
+    </div>
+  </div>
+</div>
+
 <!-- ADD USER MODAL -->
 <div class="modal-overlay" id="addUserModal">
   <div class="modal" style="width:440px">
@@ -3175,15 +3461,35 @@ function getDailyDues(dateStr) {
 function calculateMultiDayDues(fromDate, toDate, neverPaid = false, waiterId = null) {
   // neverPaid=true  → fromDate is joinDate, include it (waiter owes from day 1)
   // neverPaid=false → fromDate is lastPaidDate, exclude it (already settled)
-  // waiterId        → if supplied, absent days for that waiter are skipped (zero dues)
+  // waiterId        → if supplied, absent/leave days for that waiter are handled per rules below
+  //
+  // RULE: Absent on Monday → Wiping (₹10) still counts. Pickup/HK skipped as normal.
+  //       On Leave any day → fully exempt (₹0 for everything, same as before).
+  //       Absent non-Monday → fully exempt (₹0 for everything, unchanged).
   const dates = daysBetween(fromDate, toDate, neverPaid);
   let totals = { pickup: 0, hk: 0, wp: 0, days: dates.length, absentDays: 0 };
   const att = (store.attendance || {});
   for (const d of dates) {
-    // Skip dues for absent days
-    if (waiterId && att[d] && att[d][waiterId]) {
-      totals.absentDays++;
-      continue;
+    if (waiterId) {
+      const isOnLeave  = isWaiterOnLeave(waiterId, d);
+      const isAbsentRaw = !!(att[d] && att[d][waiterId]); // raw attendance absent flag only
+      const isMonday   = getDayOfWeek(d) === 1;
+
+      if (isOnLeave) {
+        // On Leave → fully exempt from all dues (including Monday wiping)
+        totals.absentDays++;
+        continue;
+      }
+
+      if (isAbsentRaw) {
+        totals.absentDays++;
+        if (isMonday) {
+          // Absent on Monday → only Wiping still applies; Pickup & HK are skipped
+          totals.wp += getDailyDues(d).wp; // adds ₹10
+        }
+        // Non-Monday absent → skip entire day (no dues)
+        continue;
+      }
     }
     const dues = getDailyDues(d);
     totals.pickup += dues.pickup;
@@ -3730,20 +4036,165 @@ function renderAll() {
   if (typeof applyModeUI === 'function') applyModeUI();
 }
 
+// ═══════════════════════════════════════════════
+//  DASHBOARD FINANCIAL FILTER STATE
+//  Controls "Total Collected", "Total Withdrawn"
+//  and category collected/withdrawn on the dashboard only.
+//  All other data (Pending, Advance, Balance, waiter table) is UNCHANGED.
+// ═══════════════════════════════════════════════
+let _dashFilter = 'today'; // 'today' | 'custom' | 'lifetime'
+let _dashCustomDate = null; // 'YYYY-MM-DD' when filter='custom'
+
+function setDashFilter(mode) {
+  _dashFilter = mode;
+  // Show/hide custom date picker
+  const cdEl = document.getElementById('dashCustomDate');
+  if (cdEl) cdEl.style.display = mode === 'custom' ? 'flex' : 'none';
+  // Update active button
+  ['dashBtnToday','dashBtnCustom','dashBtnLifetime'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.remove('active');
+  });
+  const activeId = { today:'dashBtnToday', custom:'dashBtnCustom', lifetime:'dashBtnLifetime' }[mode];
+  if (activeId) { const btn = document.getElementById(activeId); if (btn) btn.classList.add('active'); }
+
+  if (mode !== 'custom') renderDashboard();
+}
+
+function onDashDatePickerChange() {
+  const v = document.getElementById('dashDatePicker')?.value;
+  _dashCustomDate = v || null;
+  renderDashboard();
+}
+
+// Date-scoped collected for a single day (display only — does NOT touch any core function)
+function getDashCollectedForDate(cat, dateStr) {
+  return store.transactions
+    .filter(t => t.type === 'collection' && txnDateStr(t.date) === dateStr)
+    .reduce((sum, t) => {
+      const d = t.detail || {};
+      if (cat === 'pickup') return sum + (d.paidPickup || 0);
+      if (cat === 'hk')     return sum + (d.paidHk     || 0);
+      if (cat === 'wp')     return sum + (d.paidWp     || 0);
+      return sum;
+    }, 0);
+}
+
+// Total collected for a single day across all categories (display only)
+function getDashTotalCollectedForDate(dateStr) {
+  return store.transactions
+    .filter(t => t.type === 'collection' && txnDateStr(t.date) === dateStr)
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+}
+
+// Total withdrawn for a single day (based on withdrawal transactions, display only)
+function getDashWithdrawnForDate(cat, dateStr) {
+  return store.transactions
+    .filter(t => t.type === 'withdrawal' && t.category === cat && txnDateStr(t.date) === dateStr)
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+}
+
+function getDashTotalWithdrawnForDate(dateStr) {
+  return store.transactions
+    .filter(t => t.type === 'withdrawal' && txnDateStr(t.date) === dateStr)
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+}
+
+// Resolve which values to show based on current filter
+function getDashFinancials() {
+  const todayStr = today();
+  let label = '';
+  let collected = { pickup: 0, hk: 0, wp: 0, total: 0 };
+  let withdrawn  = { pickup: 0, hk: 0, wp: 0, total: 0 };
+
+  if (_dashFilter === 'lifetime') {
+    // Lifetime — use existing core functions (unchanged)
+    collected = {
+      pickup: getCategoryCollected('pickup'),
+      hk:     getCategoryCollected('hk'),
+      wp:     getCategoryCollected('wp'),
+      total:  getTotalPaid()
+    };
+    withdrawn = {
+      pickup: getCategoryWithdrawn('pickup'),
+      hk:     getCategoryWithdrawn('hk'),
+      wp:     getCategoryWithdrawn('wp'),
+      total:  getCategoryWithdrawn('pickup') + getCategoryWithdrawn('hk') + getCategoryWithdrawn('wp')
+    };
+    label = 'All Time';
+
+  } else if (_dashFilter === 'custom' && _dashCustomDate) {
+    const d = _dashCustomDate;
+    collected = {
+      pickup: getDashCollectedForDate('pickup', d),
+      hk:     getDashCollectedForDate('hk', d),
+      wp:     getDashCollectedForDate('wp', d),
+      total:  getDashTotalCollectedForDate(d)
+    };
+    withdrawn = {
+      pickup: getDashWithdrawnForDate('pickup', d),
+      hk:     getDashWithdrawnForDate('hk', d),
+      wp:     getDashWithdrawnForDate('wp', d),
+      total:  getDashTotalWithdrawnForDate(d)
+    };
+    label = formatDate(d);
+
+  } else {
+    // Default — today
+    collected = {
+      pickup: getDashCollectedForDate('pickup', todayStr),
+      hk:     getDashCollectedForDate('hk', todayStr),
+      wp:     getDashCollectedForDate('wp', todayStr),
+      total:  getDashTotalCollectedForDate(todayStr)
+    };
+    withdrawn = {
+      pickup: getDashWithdrawnForDate('pickup', todayStr),
+      hk:     getDashWithdrawnForDate('hk', todayStr),
+      wp:     getDashWithdrawnForDate('wp', todayStr),
+      total:  getDashTotalWithdrawnForDate(todayStr)
+    };
+    label = 'Today';
+  }
+
+  return { collected, withdrawn, label };
+}
+
 function renderDashboard() {
-  const totalPaid = getTotalPaid();
+  // ── Financial data: date-scoped per filter ──
+  const { collected, withdrawn, label } = getDashFinancials();
+
+  // ── Non-financial data: UNCHANGED (always lifetime / current state) ──
   const totalPending = getTotalPending();
   const totalBalance = getCategoryBalance('pickup') + getCategoryBalance('hk') + getCategoryBalance('wp');
-  const totalWithdrawn = getCategoryWithdrawn('pickup') + getCategoryWithdrawn('hk') + getCategoryWithdrawn('wp');
   const totalAdvance = getTotalAdvance();
-  const advanceCount = store.waiters.filter(w => (w.advance || 0) > 0).length;
-  const collectorTotal = totalAdvance + totalBalance; // advance in hand + balance available to withdraw
+  const collectorTotal = totalAdvance + totalBalance;
+
+  // Update filter label
+  const filterLabel = document.getElementById('dashFilterLabel');
+  if (filterLabel) filterLabel.textContent = label ? `Showing: ${label}` : '';
+
+  // Payment count for the period (display only)
+  const periodLabel = label ? `(${label})` : '';
+  const txnCountLabel = _dashFilter === 'lifetime'
+    ? `${store.transactions.filter(t=>t.type==='collection').length} payments`
+    : `${store.transactions.filter(t => t.type==='collection' && (
+        _dashFilter === 'custom' && _dashCustomDate
+          ? txnDateStr(t.date) === _dashCustomDate
+          : txnDateStr(t.date) === today()
+      )).length} payments ${periodLabel}`;
+  const wdCountLabel = _dashFilter === 'lifetime'
+    ? `${store.transactions.filter(t=>t.type==='withdrawal').length} withdrawals`
+    : `${store.transactions.filter(t => t.type==='withdrawal' && (
+        _dashFilter === 'custom' && _dashCustomDate
+          ? txnDateStr(t.date) === _dashCustomDate
+          : txnDateStr(t.date) === today()
+      )).length} withdrawals ${periodLabel}`;
 
   document.getElementById('dashStats').innerHTML = `
     <div class="stat-card" style="--accent-color:var(--green)">
       <div class="stat-label">Total Collected</div>
-      <div class="stat-value">₹${totalPaid.toLocaleString('en-IN')}</div>
-      <div class="stat-sub">${store.transactions.filter(t=>t.type==='collection').length} payments</div>
+      <div class="stat-value">₹${collected.total.toLocaleString('en-IN')}</div>
+      <div class="stat-sub">${txnCountLabel}</div>
       <div class="stat-icon">◈</div>
     </div>
     <div class="stat-card" style="--accent-color:var(--amber)">
@@ -3760,8 +4211,8 @@ function renderDashboard() {
     </div>
     <div class="stat-card" style="--accent-color:var(--red)">
       <div class="stat-label">Total Withdrawn</div>
-      <div class="stat-value">₹${totalWithdrawn.toLocaleString('en-IN')}</div>
-      <div class="stat-sub">${store.transactions.filter(t=>t.type==='withdrawal').length} withdrawals</div>
+      <div class="stat-value">₹${withdrawn.total.toLocaleString('en-IN')}</div>
+      <div class="stat-sub">${wdCountLabel}</div>
       <div class="stat-icon">⊖</div>
     </div>
     <div class="stat-card" style="--accent-color:var(--blue)">
@@ -3781,39 +4232,41 @@ function renderDashboard() {
   ];
 
   document.getElementById('dashCats').innerHTML = cats.map(c => {
-    const collected = getCategoryCollected(c.key);
-    const withdrawn = getCategoryWithdrawn(c.key);
-    const balance = getCategoryBalance(c.key);
-    const pending = getCategoryPending(c.key);
+    // Collected/Withdrawn: date-scoped
+    const col  = collected[c.key];
+    const wd   = withdrawn[c.key];
+    // Pending & Balance: always lifetime/current (UNCHANGED)
+    const pend = getCategoryPending(c.key);
+    const bal  = getCategoryBalance(c.key);
     return `
       <div class="cat-card">
         <div class="cat-header">
           <div class="cat-name" style="color:${c.color}">${c.icon} ${c.label}</div>
-          <div class="cat-badge" style="background:${c.bg};color:${c.color}">ACTIVE</div>
+          <div class="cat-badge" style="background:${c.bg};color:${c.color}">${label || 'TODAY'}</div>
         </div>
         <div class="cat-rows">
           <div class="cat-row">
             <span class="cat-row-label">Collected</span>
-            <span class="cat-row-val text-green">₹${collected.toLocaleString('en-IN')}</span>
+            <span class="cat-row-val text-green">₹${col.toLocaleString('en-IN')}</span>
           </div>
           <div class="cat-row">
             <span class="cat-row-label">Withdrawn</span>
-            <span class="cat-row-val text-red">₹${withdrawn.toLocaleString('en-IN')}</span>
+            <span class="cat-row-val text-red">₹${wd.toLocaleString('en-IN')}</span>
           </div>
           <div class="cat-row">
             <span class="cat-row-label">Pending (owed)</span>
-            <span class="cat-row-val text-amber">₹${pending.toLocaleString('en-IN')}</span>
+            <span class="cat-row-val text-amber">₹${pend.toLocaleString('en-IN')}</span>
           </div>
         </div>
         <div class="cat-balance">
           <span>Balance</span>
-          <span style="color:${c.color}">₹${balance.toLocaleString('en-IN')}</span>
+          <span style="color:${c.color}">₹${bal.toLocaleString('en-IN')}</span>
         </div>
       </div>
     `;
   }).join('');
 
-  // Waiter summary table
+  // ── Waiter summary table — UNCHANGED ──
   const sorted = [...store.waiters].sort((a, b) => {
     const pa = (a.pending_pickup||0)+(a.pending_hk||0)+(a.pending_wp||0);
     const pb = (b.pending_pickup||0)+(b.pending_hk||0)+(b.pending_wp||0);
@@ -3838,7 +4291,6 @@ function renderDashboard() {
             ? `<span class="badge badge-green">In Advance</span>`
             : `<span class="badge badge-blue">Clear</span>`;
 
-    // Find the most recent collection transaction for this waiter
     const lastTxn = store.transactions.find(t => t.type === 'collection' && t.waiterId === w.id);
     const lastPaidAmt = lastTxn ? `<span class="text-green">₹${(lastTxn.amount||0).toLocaleString('en-IN')}</span>` : '<span class="text-muted">—</span>';
     const leaveBadgeDash = onLeaveTodayDash ? `<span class='leave-name-badge'>🏖</span>` : '';
@@ -4020,6 +4472,10 @@ function updateCollectionPreview() {
 
 function renderWithdrawal() {
   updateWithdrawalInfo();
+  // Refresh captain balance cards if that view is active
+  if (document.getElementById('captainWdView')?.style.display !== 'none') {
+    renderCaptainWdBalCards();
+  }
   const cats = [
     { key: 'pickup', label: 'Pickup', icon: '🚗', color: 'var(--pickup)', bg: 'var(--pickup-dim)' },
     { key: 'hk', label: 'Housekeeping', icon: '🧹', color: 'var(--hk)', bg: 'var(--hk-dim)' },
@@ -4854,28 +5310,32 @@ function toggleModePasscodeVis() {
   else { inp.type = 'password'; btn.textContent = '👁'; }
 }
 
-// ── Guard wrappers: block data-write functions in View Mode ──
+// ── Guard wrappers: block data-write functions in View Mode AND by permission ──
 const _origAddPayment = addPayment;
 addPayment = function() {
   if (!_isEditMode) { showToast('🔒 Enter Edit Mode to record payments', 'warning'); return; }
+  if (!hasPermission('can_record_payment')) { showToast('⛔ You do not have permission to record payments', 'warning'); return; }
   _origAddPayment.apply(this, arguments);
 };
 
 const _origAddWithdrawal = addWithdrawal;
 addWithdrawal = function() {
   if (!_isEditMode) { showToast('🔒 Enter Edit Mode to add withdrawals', 'warning'); return; }
+  if (!hasPermission('can_record_withdrawal')) { showToast('⛔ You do not have permission to record withdrawals', 'warning'); return; }
   _origAddWithdrawal.apply(this, arguments);
 };
 
 const _origSaveNewWaiter = saveNewWaiter;
 saveNewWaiter = function() {
   if (!_isEditMode) { showToast('🔒 Enter Edit Mode to add waiters', 'warning'); return; }
+  if (!hasPermission('can_add_waiter')) { showToast('⛔ You do not have permission to add waiters', 'warning'); return; }
   _origSaveNewWaiter.apply(this, arguments);
 };
 
 const _origDeleteWaiter = deleteWaiter;
 deleteWaiter = function() {
   if (!_isEditMode) { showToast('🔒 Enter Edit Mode to delete waiters', 'warning'); return; }
+  if (!hasPermission('can_delete_waiter')) { showToast('⛔ You do not have permission to delete waiters', 'warning'); return; }
   _origDeleteWaiter.apply(this, arguments);
 };
 
@@ -4888,6 +5348,7 @@ showImportModal = function() {
 const _origShowAddWaiterModal = showAddWaiterModal;
 showAddWaiterModal = function() {
   if (!_isEditMode) { showToast('🔒 Enter Edit Mode to add waiters', 'warning'); return; }
+  if (!hasPermission('can_add_waiter')) { showToast('⛔ You do not have permission to add waiters', 'warning'); return; }
   _origShowAddWaiterModal.apply(this, arguments);
 };
 
@@ -4946,7 +5407,8 @@ function attToggleGuarded(waiterId, dateStr, btn) {
 }
 
 function attToggle(waiterId, dateStr) {
-  if (!isAdminLoggedIn()) { showToast('⚠ Only Admins can update attendance', 'warning'); return; }
+  const canToggle = isAdminLoggedIn() || hasPermission('can_mark_attendance');
+  if (!canToggle) { showToast('⚠ Only Admins can update attendance', 'warning'); return; }
   const todayStr = today();
   if (dateStr > todayStr) { showToast('Cannot mark attendance for future dates', 'warning'); return; }
 
@@ -5174,7 +5636,7 @@ let _endLeaveTargetId = null;
 
 // ── Open Add Leave modal ──
 function showAddLeaveModal() {
-  if (!isAdminLoggedIn()) { showToast('⚠ Only admins can assign leave', 'warning'); return; }
+  if (!isAdminLoggedIn() && !hasPermission('can_manage_leave')) { showToast('⛔ You do not have permission to manage leave', 'warning'); return; }
   _leaveEditingId = null;
   document.getElementById('leaveModalTitle').innerHTML = '<span>🏖</span> Assign Leave (Chhuti)';
   document.getElementById('leaveSaveBtn').textContent = '🏖 Assign Leave';
@@ -5201,7 +5663,7 @@ function showAddLeaveModal() {
 
 // ── Open Edit Leave modal ──
 function showEditLeaveModal(leaveId) {
-  if (!isAdminLoggedIn()) { showToast('⚠ Only admins can edit leave', 'warning'); return; }
+  if (!isAdminLoggedIn() && !hasPermission('can_manage_leave')) { showToast('⛔ You do not have permission to manage leave', 'warning'); return; }
   const lv = (store.leaves || []).find(l => l.id === leaveId);
   if (!lv) return;
   _leaveEditingId = leaveId;
@@ -5302,7 +5764,7 @@ function saveLeave() {
 
 // ── Prompt End Leave ──
 function promptEndLeave(leaveId) {
-  if (!isAdminLoggedIn()) { showToast('⚠ Only admins can end leave', 'warning'); return; }
+  if (!isAdminLoggedIn() && !hasPermission('can_manage_leave')) { showToast('⛔ You do not have permission to manage leave', 'warning'); return; }
   const lv = (store.leaves || []).find(l => l.id === leaveId);
   if (!lv) return;
   _endLeaveTargetId = leaveId;
@@ -5380,9 +5842,9 @@ function renderLeave() {
             ${lv.note ? `<span style="font-size:11px;color:var(--text3)">📝 ${lv.note}</span>` : ''}
           </div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
-          <button class="btn btn-ghost btn-sm" onclick="showEditLeaveModal('${lv.id}')">✎ Edit</button>
-          <button class="btn btn-sm" style="background:rgba(34,211,165,0.12);border:1px solid rgba(34,211,165,0.3);color:var(--green);padding:5px 10px;font-size:11px" onclick="promptEndLeave('${lv.id}')">✓ Back to Duty</button>
+        <div class="leave-actions">
+          <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:5px 10px" onclick="showEditLeaveModal('${lv.id}')">✎ Edit</button>
+          <button class="btn btn-sm" style="background:rgba(34,211,165,0.12);border:1px solid rgba(34,211,165,0.3);color:var(--green);padding:5px 10px;font-size:11px;white-space:nowrap" onclick="promptEndLeave('${lv.id}')">✓ Back to Duty</button>
         </div>
       </div>`;
     }).join('');
@@ -5549,8 +6011,89 @@ function applyGuestUI() {
 
   document.getElementById('modeBanner').style.display = 'none';
 
+  // Guest: today-only view, no filter bar, show badge
+  _dashFilter = 'today';
+  applyDashFilterUI('guest');
+  applyWithdrawalViewUI('guest');
+
   renderAll();
   showPage('dashboard');
+}
+
+// ── Controls which dashboard filter elements are shown per role ──
+function applyDashFilterUI(role) {
+  const filterBar  = document.getElementById('dashFilterBar');
+  const todayBadge = document.getElementById('dashTodayBadge');
+  const lifetimeBtn = document.getElementById('dashBtnLifetime');
+
+  if (role === 'admin') {
+    // Admin: full filter bar, "All Time" button shown
+    if (filterBar)  { filterBar.style.display  = 'flex'; }
+    if (todayBadge) { todayBadge.style.display = 'none'; }
+    if (lifetimeBtn){ lifetimeBtn.style.display = ''; }
+  } else if (role === 'collector') {
+    // Captain: date filter bar shown (today + pick date), but NO "All Time" button
+    if (filterBar)  { filterBar.style.display  = 'flex'; }
+    if (todayBadge) { todayBadge.style.display = 'none'; }
+    if (lifetimeBtn){ lifetimeBtn.style.display = 'none'; }
+    // Reset filter to today if currently on lifetime (captain can't access that)
+    if (_dashFilter === 'lifetime') { _dashFilter = 'today'; setDashFilter('today'); }
+  } else {
+    // Guest / waiter / staff: no filter, locked to today, show badge
+    if (filterBar)  { filterBar.style.display  = 'none'; }
+    if (todayBadge) { todayBadge.style.display = ''; }
+    _dashFilter = 'today';
+  }
+}
+
+// ── Controls withdrawal page view per role ──
+function applyWithdrawalViewUI(role) {
+  const captainView = document.getElementById('captainWdView');
+  const adminView   = document.getElementById('adminWdView');
+  if (role === 'admin') {
+    // Admin: always full form
+    if (captainView) captainView.style.display = 'none';
+    if (adminView)   adminView.style.display   = '';
+  } else if (role === 'collector') {
+    // Captain: show full form if they have withdrawal permission, otherwise balance-only
+    if (hasPermission('can_record_withdrawal')) {
+      if (captainView) captainView.style.display = 'none';
+      if (adminView)   adminView.style.display   = '';
+    } else {
+      if (captainView) captainView.style.display = '';
+      if (adminView)   adminView.style.display   = 'none';
+      renderCaptainWdBalCards();
+    }
+  } else {
+    // Others: neither view (no withdrawal page access)
+    if (captainView) captainView.style.display = 'none';
+    if (adminView)   adminView.style.display   = '';
+  }
+}
+
+// ── Render captain withdrawal balance cards (balance-only, lifetime) ──
+function renderCaptainWdBalCards() {
+  const el = document.getElementById('captainWdBalCards');
+  if (!el) return;
+  const cats = [
+    { key: 'pickup', label: 'Pickup', icon: '🚗', color: 'var(--pickup)', bg: 'var(--pickup-dim)' },
+    { key: 'hk', label: 'Housekeeping', icon: '🧹', color: 'var(--hk)', bg: 'var(--hk-dim)' },
+    { key: 'wp', label: 'Wiping', icon: '🧽', color: 'var(--wp)', bg: 'var(--wp-dim)' }
+  ];
+  el.innerHTML = cats.map(c => {
+    const bal = getCategoryBalance(c.key);
+    return `
+      <div class="cat-card">
+        <div class="cat-header">
+          <div class="cat-name" style="color:${c.color}">${c.icon} ${c.label}</div>
+          <div class="cat-badge" style="background:${c.bg};color:${c.color}">BALANCE</div>
+        </div>
+        <div class="cat-balance" style="margin-top:8px">
+          <span>Available to Withdraw</span>
+          <span style="color:${c.color};font-size:20px;font-family:'Syne',sans-serif;font-weight:800">₹${bal.toLocaleString('en-IN')}</span>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 function doLogout() {
@@ -5593,18 +6136,36 @@ function applyRoleUI() {
     });
     document.getElementById('modeBanner').style.display = '';
     _isEditMode = false;
+    _dashFilter = 'today'; // reset to today on each login
+    applyDashFilterUI('admin');
+    applyWithdrawalViewUI('admin');
     renderAll();
     applyModeUI();
+    applyPermissionUI(); // admin bypasses internally — call is safe no-op
     showPage('dashboard');
 
   } else if (role === 'collector') {
-    ['nav-dashboard','nav-collection','nav-withdrawal','nav-history'].forEach(id => {
-      const el = document.getElementById(id); if (el) el.style.display = '';
+    // Start with base role navigation, then permission gating will trim further
+    const collectorNavBase = ['nav-dashboard','nav-collection','nav-withdrawal','nav-history'];
+    // Also show any extra pages if permissions allow
+    const extraPages = {
+      'nav-waiters': 'view_waiters', 'nav-rules': 'view_rules',
+      'nav-reports': 'view_reports', 'nav-attendance': 'view_attendance',
+      'nav-leave': 'view_leave', 'nav-activity-logs': 'view_activity_logs'
+    };
+    collectorNavBase.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
+    Object.entries(extraPages).forEach(([navId, permKey]) => {
+      const perms = _currentUser.permissions || getDefaultPermissions('collector');
+      if (perms[permKey]) { const el = document.getElementById(navId); if (el) el.style.display = ''; }
     });
-    document.getElementById('btnExportCsv').style.display = '';
+    if (hasPermission('can_export_csv')) document.getElementById('btnExportCsv').style.display = '';
     document.getElementById('modeBanner').style.display   = 'none';
     _isEditMode = true;
+    _dashFilter = 'today'; // reset to today on each login
+    applyDashFilterUI(hasPermission('can_view_financial_filter') ? 'collector' : 'other');
+    applyWithdrawalViewUI('collector');
     renderAll();
+    applyPermissionUI();
     showPage('dashboard');
 
   } else {
@@ -5612,8 +6173,11 @@ function applyRoleUI() {
     if (navSD) navSD.style.display = '';
     document.getElementById('modeBanner').style.display = 'none';
     _isEditMode = false;
+    applyDashFilterUI('other');
+    applyWithdrawalViewUI('other');
     renderAll();
     renderStaffDashboard();
+    applyPermissionUI();
     showPage('staff-dashboard');
   }
 }
@@ -5640,6 +6204,10 @@ showPage = function(page) {
   if (page === 'attendance')      renderAttendance();
   if (page === 'activity-logs')   renderActivityLogs();
   if (page === 'leave')           renderLeave();
+  // Re-apply withdrawal view in case role changed
+  if (page === 'withdrawal' && _currentUser) {
+    applyWithdrawalViewUI(_currentUser.role);
+  }
 };
 
 // ── Extend init — guest by default, no forced login ──
@@ -5652,7 +6220,234 @@ init = async function() {
 };
 
 // ═══════════════════════════════════════════════
-//  USER MANAGEMENT FUNCTIONS
+//  PERMISSIONS SYSTEM
+//  Each user has an optional `permissions` object.
+//  If absent → getDefaultPermissions(role) is used.
+//  Admin always has all permissions (bypasses checks).
+//
+//  Permission keys:
+//    VIEW:   view_dashboard, view_waiters, view_collection,
+//            view_withdrawal, view_history, view_rules,
+//            view_reports, view_attendance, view_leave,
+//            view_activity_logs
+//    ACTION: can_record_payment, can_record_withdrawal,
+//            can_add_waiter, can_delete_waiter,
+//            can_mark_attendance, can_manage_leave,
+//            can_export_csv, can_view_financial_filter,
+//            can_manage_users
+// ═══════════════════════════════════════════════
+
+// Canonical list of all permission keys with metadata for UI
+const PERM_DEFS = {
+  view: [
+    { key: 'view_dashboard',       label: 'Dashboard',        hint: 'Main dashboard overview' },
+    { key: 'view_waiters',         label: 'Waiters',          hint: 'Waiter list & details' },
+    { key: 'view_collection',      label: 'Collection',       hint: 'Record & view payments' },
+    { key: 'view_withdrawal',      label: 'Withdrawal',       hint: 'Withdrawal page' },
+    { key: 'view_history',         label: 'History',          hint: 'Transaction history' },
+    { key: 'view_rules',           label: 'Rules',            hint: 'Tip rules reference' },
+    { key: 'view_reports',         label: 'Reports',          hint: 'Financial reports' },
+    { key: 'view_attendance',      label: 'Attendance',       hint: 'Staff attendance grid' },
+    { key: 'view_leave',           label: 'Leave (Chhuti)',   hint: 'Leave management' },
+    { key: 'view_activity_logs',   label: 'Activity Logs',    hint: 'Audit trail logs' },
+  ],
+  action: [
+    { key: 'can_record_payment',    label: 'Record Payment',      hint: 'Submit tip collections' },
+    { key: 'can_record_withdrawal', label: 'Record Withdrawal',   hint: 'Withdraw from balance' },
+    { key: 'can_add_waiter',        label: 'Add Waiter',          hint: 'Create new staff records' },
+    { key: 'can_delete_waiter',     label: 'Delete Waiter',       hint: 'Remove staff records' },
+    { key: 'can_mark_attendance',   label: 'Mark Attendance',     hint: 'Toggle present/absent' },
+    { key: 'can_manage_leave',      label: 'Manage Leave',        hint: 'Assign/end leave periods' },
+    { key: 'can_export_csv',        label: 'Export CSV',          hint: 'Download data exports' },
+    { key: 'can_view_financial_filter', label: 'Date Filter',     hint: 'Dashboard financial filter' },
+    { key: 'can_manage_users',      label: 'Manage Users',        hint: 'Add/edit/delete users' },
+  ]
+};
+
+// Default permissions per role — used for existing users without a permissions object
+function getDefaultPermissions(role) {
+  const all   = { ...Object.fromEntries([...PERM_DEFS.view, ...PERM_DEFS.action].map(p => [p.key, true])) };
+  const none  = { ...Object.fromEntries([...PERM_DEFS.view, ...PERM_DEFS.action].map(p => [p.key, false])) };
+
+  if (role === 'admin') return all;
+
+  if (role === 'collector') return {
+    view_dashboard: true,  view_waiters: false, view_collection: true,
+    view_withdrawal: true, view_history: true,  view_rules: false,
+    view_reports: false,   view_attendance: false, view_leave: false,
+    view_activity_logs: false,
+    can_record_payment: true,    can_record_withdrawal: true,
+    can_add_waiter: false,       can_delete_waiter: false,
+    can_mark_attendance: false,  can_manage_leave: false,
+    can_export_csv: true,        can_view_financial_filter: true,
+    can_manage_users: false,
+  };
+
+  if (role === 'waiter' || role === 'staff') return {
+    view_dashboard: true,  view_waiters: false, view_collection: false,
+    view_withdrawal: false, view_history: false, view_rules: true,
+    view_reports: false,   view_attendance: false, view_leave: false,
+    view_activity_logs: false,
+    can_record_payment: false,   can_record_withdrawal: false,
+    can_add_waiter: false,       can_delete_waiter: false,
+    can_mark_attendance: false,  can_manage_leave: false,
+    can_export_csv: false,       can_view_financial_filter: false,
+    can_manage_users: false,
+  };
+
+  return { ...none, view_dashboard: true };
+}
+
+// Check if current user has a permission
+// Admin always returns true. Others check permissions object (or role defaults).
+function hasPermission(key) {
+  if (!_currentUser) return false;
+  if (_currentUser.role === 'admin') return true;
+  const perms = _currentUser.permissions || getDefaultPermissions(_currentUser.role);
+  return !!perms[key];
+}
+
+// Check if two permission objects are identical to defaults
+function isDefaultPermissions(permissions, role) {
+  if (!permissions) return true;
+  const defaults = getDefaultPermissions(role);
+  return Object.keys(defaults).every(k => permissions[k] === defaults[k]);
+}
+
+// ── Permissions Modal state ──
+let _permEditingUserId = null;
+let _permCurrentState  = {};   // live toggle state while modal is open
+
+function openPermissionsModal(userId) {
+  const user = _authUsers.find(u => u.userId === userId);
+  if (!user) return;
+  _permEditingUserId = userId;
+
+  const isAdmin = user.role === 'admin';
+  document.getElementById('permModalTitle').textContent = `Permissions — ${user.name}`;
+  document.getElementById('permModalRoleHint').textContent =
+    isAdmin
+      ? '⚙ Admin users always have all permissions — these settings are ignored.'
+      : `Role: ${ROLE_LABELS[user.role] || user.role}  •  Toggle to override default role permissions.`;
+
+  // Build current state: use existing permissions or defaults
+  const perms = user.permissions || getDefaultPermissions(user.role);
+  _permCurrentState = { ...perms };
+
+  // Render view group
+  document.getElementById('permViewGroup').innerHTML = PERM_DEFS.view.map(p =>
+    _buildPermRow(p, _permCurrentState[p.key], isAdmin)
+  ).join('');
+
+  // Render action group
+  document.getElementById('permActionGroup').innerHTML = PERM_DEFS.action.map(p =>
+    _buildPermRow(p, _permCurrentState[p.key], isAdmin)
+  ).join('');
+
+  openModal('permissionsModal');
+}
+
+function _buildPermRow(p, isOn, disabled) {
+  const on = !!isOn;
+  return `
+    <div class="perm-row ${on ? 'perm-on' : 'perm-off'}" id="permrow-${p.key}">
+      <div class="perm-label">
+        ${p.label}
+        <small>${p.hint}</small>
+      </div>
+      <label class="perm-toggle" title="${disabled ? 'Admin always has all permissions' : (on ? 'Enabled — click to disable' : 'Disabled — click to enable')}">
+        <input type="checkbox" id="perm-${p.key}" ${on ? 'checked' : ''} ${disabled ? 'disabled' : ''}
+          onchange="onPermToggle('${p.key}', this.checked)" />
+        <span class="perm-slider"></span>
+      </label>
+    </div>`;
+}
+
+function onPermToggle(key, val) {
+  _permCurrentState[key] = val;
+  const row = document.getElementById('permrow-' + key);
+  if (row) {
+    row.className = `perm-row ${val ? 'perm-on' : 'perm-off'}`;
+  }
+}
+
+function resetPermissionsToDefault() {
+  const user = _authUsers.find(u => u.userId === _permEditingUserId);
+  if (!user) return;
+  const defaults = getDefaultPermissions(user.role);
+  _permCurrentState = { ...defaults };
+  // Refresh toggles
+  [...PERM_DEFS.view, ...PERM_DEFS.action].forEach(p => {
+    const cb  = document.getElementById('perm-' + p.key);
+    const row = document.getElementById('permrow-' + p.key);
+    if (cb) cb.checked = !!defaults[p.key];
+    if (row) row.className = `perm-row ${defaults[p.key] ? 'perm-on' : 'perm-off'}`;
+  });
+  showToast('Reset to role defaults — click Save to apply', 'info');
+}
+
+function savePermissions() {
+  const idx = _authUsers.findIndex(u => u.userId === _permEditingUserId);
+  if (idx === -1) { closeModal('permissionsModal'); return; }
+  _authUsers[idx] = { ..._authUsers[idx], permissions: { ..._permCurrentState } };
+  // If editing self, refresh current user's permissions live
+  if (_currentUser && _currentUser.userId === _permEditingUserId) {
+    _currentUser = { ..._authUsers[idx] };
+  }
+  saveUsers();
+  closeModal('permissionsModal');
+  renderUsersTable();
+  pushLog('user_edited', `Updated permissions for "${_authUsers[idx].name}" (${_permEditingUserId})`);
+  showToast(`Permissions saved for ${_authUsers[idx].name}`, 'success');
+}
+
+// ── Apply permission-based UI gating after login ──
+// Called after applyRoleUI — hides nav items & disables actions the user can't access
+function applyPermissionUI() {
+  if (!_currentUser) return;
+  if (_currentUser.role === 'admin') return; // admin bypasses all gating
+
+  // Map nav item IDs to permission keys
+  const navPerms = {
+    'nav-dashboard':     'view_dashboard',
+    'nav-waiters':       'view_waiters',
+    'nav-collection':    'view_collection',
+    'nav-withdrawal':    'view_withdrawal',
+    'nav-history':       'view_history',
+    'nav-rules':         'view_rules',
+    'nav-reports':       'view_reports',
+    'nav-attendance':    'view_attendance',
+    'nav-leave':         'view_leave',
+    'nav-activity-logs': 'view_activity_logs',
+  };
+
+  Object.entries(navPerms).forEach(([navId, permKey]) => {
+    const el = document.getElementById(navId);
+    if (!el) return;
+    // Only hide if the nav item is currently visible (role already limited the base set)
+    if (el.style.display !== 'none' && !hasPermission(permKey)) {
+      el.style.display = 'none';
+    }
+  });
+
+  // Action gating: export CSV
+  if (!hasPermission('can_export_csv')) {
+    const btn = document.getElementById('btnExportCsv');
+    if (btn) btn.style.display = 'none';
+  }
+
+  // Financial filter on dashboard
+  if (!hasPermission('can_view_financial_filter')) {
+    const fb = document.getElementById('dashFilterBar');
+    if (fb) fb.style.display = 'none';
+    const tb = document.getElementById('dashTodayBadge');
+    if (tb) tb.style.display = '';
+    _dashFilter = 'today';
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  USER MANAGEMENT FUNCTIONS (extended)
 // ═══════════════════════════════════════════════
 
 let _editingUserId = null;
@@ -5661,7 +6456,7 @@ function renderUsersTable() {
   const tbody = document.getElementById('usersTableBody');
   if (!tbody) return;
   if (!_authUsers.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text3)">No users found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text3)">No users found.</td></tr>`;
     return;
   }
   tbody.innerHTML = _authUsers.map(u => {
@@ -5674,17 +6469,29 @@ function renderUsersTable() {
     const toggleBtn = isSelf ? '' : (u.active
       ? `<button class="btn btn-sm" style="background:var(--amber-dim);border:1px solid rgba(245,158,11,0.3);color:var(--amber);padding:5px 10px" onclick="toggleUserActive('${u.userId}')">⏸ Deactivate</button>`
       : `<button class="btn btn-sm" style="background:var(--green-dim);border:1px solid rgba(34,211,165,0.3);color:var(--green);padding:5px 10px" onclick="toggleUserActive('${u.userId}')">▶ Activate</button>`);
+
+    // Permission summary chip
+    const isAdmin = u.role === 'admin';
+    const hasCustom = !isAdmin && u.permissions && !isDefaultPermissions(u.permissions, u.role);
+    const permChip = isAdmin
+      ? `<span class="perm-summary custom" title="Admin has all permissions" onclick="openPermissionsModal('${u.userId}')">⚙ Full Access</span>`
+      : hasCustom
+        ? `<span class="perm-summary custom" title="Custom permissions set" onclick="openPermissionsModal('${u.userId}')">🔐 Custom</span>`
+        : `<span class="perm-summary default" title="Using role defaults" onclick="openPermissionsModal('${u.userId}')">◎ Default</span>`;
+
     return `<tr>
-      <td style="font-family:'DM Mono',monospace">${u.userId}</td>
-      <td>${u.name}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text2)">${u.userId}</td>
+      <td style="font-weight:500">${u.name}</td>
       <td><span class="role-chip ${u.role}">${roleLabel}</span></td>
-      <td style="color:var(--text2)">${linkedWaiter}</td>
+      <td style="color:var(--text2);font-size:12px">${linkedWaiter}</td>
       <td>${statusBadge}</td>
+      <td>${permChip}</td>
       <td>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="openEditUserModal('${u.userId}')">✎ Edit</button>
+        <div style="display:flex;gap:5px;align-items:center;flex-wrap:nowrap">
+          <button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px" onclick="openEditUserModal('${u.userId}')">✎</button>
+          <button class="btn btn-sm" style="padding:4px 10px;font-size:11px;background:rgba(108,99,255,0.1);border:1px solid rgba(108,99,255,0.3);color:var(--accent2)" onclick="openPermissionsModal('${u.userId}')">🔐 Perms</button>
           ${toggleBtn}
-          ${isSelf ? '' : `<button class="btn btn-danger btn-sm" onclick="deleteAuthUser('${u.userId}')">✕ Del</button>`}
+          ${isSelf ? '' : `<button class="btn btn-danger btn-sm" style="padding:4px 8px;font-size:11px" onclick="deleteAuthUser('${u.userId}')">✕</button>`}
         </div>
       </td>
     </tr>`;
@@ -5760,6 +6567,7 @@ function saveUser() {
     if (_authUsers.find(u => u.userId === userId)) return showErr('User ID already exists.');
     if (!passcode)            return showErr('Passcode is required for new users.');
     if (passcode.length < 4)  return showErr('Passcode must be at least 4 characters.');
+    // New users start with default permissions for their role (no permissions object = use defaults)
     _authUsers.push({ userId, passcode, name, role, active, waiterId });
     showToast('User added: ' + name, 'success');
     pushLog('user_added', `Added user "${name}" (${userId}) — Role: ${role}`);
@@ -5768,7 +6576,14 @@ function saveUser() {
     if (idx === -1) return showErr('User not found.');
     if (passcode.length > 0 && passcode.length < 4) return showErr('New passcode must be at least 4 characters.');
     const updatedPasscode = passcode.length >= 4 ? passcode : _authUsers[idx].passcode;
-    _authUsers[idx] = { ..._authUsers[idx], name, role, active, waiterId, passcode: updatedPasscode };
+    // Preserve existing permissions when editing — only role change resets to defaults if no custom perms
+    const existingPerms = _authUsers[idx].permissions;
+    const roleChanged   = _authUsers[idx].role !== role;
+    // If role changed and permissions were still at old defaults, clear them so new defaults apply
+    const newPerms = roleChanged && isDefaultPermissions(existingPerms, _authUsers[idx].role)
+      ? undefined
+      : existingPerms;
+    _authUsers[idx] = { ..._authUsers[idx], name, role, active, waiterId, passcode: updatedPasscode, permissions: newPerms };
     if (_currentUser && _currentUser.userId === _editingUserId) _currentUser = { ..._authUsers[idx] };
     showToast('User updated: ' + name, 'success');
     pushLog('user_edited', `Edited user "${name}" (${userId}) — Role: ${role}`);
