@@ -4108,18 +4108,21 @@ function getDashFinancials() {
   let withdrawn  = { pickup: 0, hk: 0, wp: 0, total: 0 };
 
   if (_dashFilter === 'lifetime') {
-    // Lifetime — use existing core functions (unchanged)
+    // Lifetime — use transaction-based totals (same source as Reports)
+    // This ensures consistency even when waiters are deleted
     collected = {
       pickup: getCategoryCollected('pickup'),
       hk:     getCategoryCollected('hk'),
       wp:     getCategoryCollected('wp'),
-      total:  getTotalPaid()
+      total:  store.transactions
+                .filter(t => t.type === 'collection')
+                .reduce((s, t) => s + (t.amount || 0), 0)
     };
     withdrawn = {
-      pickup: getCategoryWithdrawn('pickup'),
-      hk:     getCategoryWithdrawn('hk'),
-      wp:     getCategoryWithdrawn('wp'),
-      total:  getCategoryWithdrawn('pickup') + getCategoryWithdrawn('hk') + getCategoryWithdrawn('wp')
+      pickup: store.transactions.filter(t => t.type === 'withdrawal' && t.category === 'pickup').reduce((s,t) => s+(t.amount||0), 0),
+      hk:     store.transactions.filter(t => t.type === 'withdrawal' && t.category === 'hk').reduce((s,t) => s+(t.amount||0), 0),
+      wp:     store.transactions.filter(t => t.type === 'withdrawal' && t.category === 'wp').reduce((s,t) => s+(t.amount||0), 0),
+      total:  store.transactions.filter(t => t.type === 'withdrawal').reduce((s,t) => s+(t.amount||0), 0)
     };
     label = 'All Time';
 
@@ -4232,10 +4235,8 @@ function renderDashboard() {
   ];
 
   document.getElementById('dashCats').innerHTML = cats.map(c => {
-    // Collected/Withdrawn: date-scoped
     const col  = collected[c.key];
     const wd   = withdrawn[c.key];
-    // Pending & Balance: always lifetime/current (UNCHANGED)
     const pend = getCategoryPending(c.key);
     const bal  = getCategoryBalance(c.key);
     return `
@@ -4481,10 +4482,27 @@ function renderWithdrawal() {
     { key: 'hk', label: 'Housekeeping', icon: '🧹', color: 'var(--hk)', bg: 'var(--hk-dim)' },
     { key: 'wp', label: 'Wiping', icon: '🧽', color: 'var(--wp)', bg: 'var(--wp-dim)' }
   ];
+
+  // Captain with withdrawal permission: balance only — no collected/withdrawn totals visible
+  const isCollector = _currentUser && _currentUser.role === 'collector';
+
   document.getElementById('wdCatCards').innerHTML = cats.map(c => {
     const bal = getCategoryBalance(c.key);
+    if (isCollector) {
+      return `
+        <div class="cat-card">
+          <div class="cat-header">
+            <div class="cat-name" style="color:${c.color}">${c.icon} ${c.label}</div>
+          </div>
+          <div class="cat-balance" style="margin-top:12px">
+            <span style="font-size:13px;color:var(--text2)">Available Balance</span>
+            <span style="color:${c.color};font-size:22px;font-family:'Syne',sans-serif;font-weight:800">₹${bal.toLocaleString('en-IN')}</span>
+          </div>
+        </div>`;
+    }
+    // Admin: full Collected · Withdrawn · Balance breakdown
     const col = getCategoryCollected(c.key);
-    const wd = getCategoryWithdrawn(c.key);
+    const wd  = getCategoryWithdrawn(c.key);
     return `
       <div class="cat-card">
         <div class="cat-header">
@@ -4504,8 +4522,7 @@ function renderWithdrawal() {
           <span>Balance</span>
           <span style="color:${c.color}">₹${bal.toLocaleString('en-IN')}</span>
         </div>
-      </div>
-    `;
+      </div>`;
   }).join('');
 }
 
