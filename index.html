@@ -5607,14 +5607,25 @@ function renderAttSummary(days, todayStr) {
 // ═══════════════════════════════════════════════
 
 // ── Helper: check if a waiter is on leave for a given date ──
+// Active leaves → absent for startDate … endDate (or open-ended)
+// Ended leaves  → still absent for startDate … endDate (the stored leave period).
+//   backOnDutyDate = endDate + 1, so it is NEVER inside this range → always Present.
 function isWaiterOnLeave(waiterId, dateStr) {
   const leaves = store.leaves || [];
   return leaves.some(lv => {
     if (lv.waiterId !== waiterId) return false;
-    if (!lv.active) return false;             // ended leave — skip
-    if (dateStr < lv.startDate) return false;  // before leave starts — skip
-    if (lv.endDate && dateStr > lv.endDate) return false; // after end date — skip
-    return true;
+    if (dateStr < lv.startDate) return false;       // before leave — skip
+
+    if (lv.active) {
+      // Still running: absent through endDate (if set) or open-ended
+      if (lv.endDate && dateStr > lv.endDate) return false;
+      return true;
+    } else {
+      // Ended: absent only within the stored leave period (startDate → endDate).
+      if (!lv.endDate) return false;
+      if (dateStr > lv.endDate) return false;
+      return true;
+    }
   });
 }
 
@@ -5785,25 +5796,76 @@ function promptEndLeave(leaveId) {
   const lv = (store.leaves || []).find(l => l.id === leaveId);
   if (!lv) return;
   _endLeaveTargetId = leaveId;
+
+  // Preview: if endDate already set → backOnDuty = endDate + 1
+  //          if endDate not set     → backOnDuty = today, leaveEnd = today - 1
+  let previewLeaveEnd, previewBackOnDuty;
+  if (lv.endDate) {
+    previewLeaveEnd    = lv.endDate;
+    const d = new Date(lv.endDate + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    previewBackOnDuty  = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  } else {
+    const todayStr = today();
+    const d = new Date(todayStr + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    previewLeaveEnd   = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    previewBackOnDuty = todayStr;
+  }
+
   document.getElementById('endLeaveWaiterName').textContent = lv.waiterName;
   document.getElementById('endLeavePeriod').textContent =
-    formatDate(lv.startDate) + ' → ' + (lv.endDate ? formatDate(lv.endDate) : 'ongoing');
+    'Leave: ' + formatDate(lv.startDate) + ' → ' + formatDate(previewLeaveEnd)
+    + '  |  Back on Duty: ' + formatDate(previewBackOnDuty);
   openModal('endLeaveModal');
 }
 
 // ── Confirm End Leave ──
+// Two cases:
+//   A) endDate already set manually →  respect it; backOnDutyDate = endDate + 1
+//   B) endDate not set (open-ended)  →  backOnDutyDate = today; leaveEndDate = today - 1
+// In both cases leave days (startDate → leaveEndDate) stay Absent via isWaiterOnLeave().
+// We never touch store.attendance — no manual conversion needed.
 function confirmEndLeave() {
   const lv = (store.leaves || []).find(l => l.id === _endLeaveTargetId);
   if (!lv) { closeModal('endLeaveModal'); return; }
 
-  const todayStr = today();
-  const updated  = { ...lv, active: false, endDate: todayStr, endedAt: new Date().toISOString() };
+  let leaveEndDate, backOnDutyDate;
+
+  if (lv.endDate) {
+    // Case A: end date was manually set — honour it, back on duty = next day
+    leaveEndDate    = lv.endDate;
+    const d = new Date(lv.endDate + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    backOnDutyDate  = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  } else {
+    // Case B: open-ended leave — back on duty = today, leave ended yesterday
+    const todayStr = today();
+    backOnDutyDate  = todayStr;
+    const d = new Date(todayStr + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    leaveEndDate    = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    // Safety: if back on duty is same day as start, keep leaveEndDate as startDate
+    if (leaveEndDate < lv.startDate) leaveEndDate = lv.startDate;
+  }
+
+  const updated = {
+    ...lv,
+    active:         false,
+    endDate:        leaveEndDate,    // last absent day
+    backOnDutyDate: backOnDutyDate,  // first present day (stored for history)
+    endedAt:        new Date().toISOString()
+  };
+
   const idx = store.leaves.findIndex(l => l.id === _endLeaveTargetId);
   store.leaves[idx] = updated;
 
+  // DO NOT touch store.attendance — leave days stay Absent via isWaiterOnLeave().
+  // backOnDutyDate is naturally Present (outside the stored leave date range).
+
   saveLeaveRecord(updated);
-  pushLog('leave', `Ended leave for "${lv.waiterName}" — returned to duty on ${formatDate(todayStr)}`);
-  showToast(`${lv.waiterName} is back on duty — normal tip calculation resumes`, 'success');
+  pushLog('leave', `Ended leave for "${lv.waiterName}" — Leave: ${formatDate(lv.startDate)} → ${formatDate(leaveEndDate)} | Back on Duty: ${formatDate(backOnDutyDate)}`);
+  showToast(`${lv.waiterName} back on duty from ${formatDate(backOnDutyDate)} — leave recorded till ${formatDate(leaveEndDate)}`, 'success');
 
   _endLeaveTargetId = null;
   closeModal('endLeaveModal');
@@ -5884,6 +5946,13 @@ function renderLeave() {
       const duration = lv.startDate && lv.endDate
         ? daysBetween(lv.startDate, lv.endDate, true).length
         : null;
+      // backOnDutyDate stored on record; fallback for legacy records = endDate + 1
+      const bod = lv.backOnDutyDate || (() => {
+        if (!lv.endDate) return null;
+        const d = new Date(lv.endDate + 'T00:00:00');
+        d.setDate(d.getDate() + 1);
+        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      })();
       return `
       <div class="leave-card">
         <div class="leave-avatar ended-leave">🏖</div>
@@ -5893,12 +5962,12 @@ function renderLeave() {
             <span class="leave-badge ended">ENDED</span>
           </div>
           <div style="font-size:12px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:3px">
-            ${formatDate(lv.startDate)} → ${lv.endDate ? formatDate(lv.endDate) : '—'}
-            ${duration ? `<span style="margin-left:8px;color:var(--text3)">(${duration} day${duration !== 1 ? 's' : ''})</span>` : ''}
+            Leave: ${formatDate(lv.startDate)} → ${lv.endDate ? formatDate(lv.endDate) : '—'}
+            ${duration ? `<span style="margin-left:8px;color:var(--amber)">(${duration} day${duration !== 1 ? 's' : ''} absent)</span>` : ''}
           </div>
+          ${bod ? `<div style="font-size:12px;color:var(--green);font-family:'DM Mono',monospace;margin-bottom:3px">✓ Back on Duty: ${formatDate(bod)}</div>` : ''}
           ${lv.note ? `<div style="font-size:11px;color:var(--text3)">📝 ${lv.note}</div>` : ''}
         </div>
-        ${lv.endedAt ? `<div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;white-space:nowrap">Ended ${formatDate(lv.endedAt.substring(0,10))}</div>` : ''}
       </div>`;
     }).join('');
   }
