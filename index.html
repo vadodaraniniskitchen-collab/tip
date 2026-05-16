@@ -8,32 +8,23 @@
 <script type="module">
 // ═══════════════════════════════════════════════
 //  FIREBASE — NORMALIZED COLLECTIONS
+//  + localStorage CACHE LAYER
 //
-//  FINAL STRUCTURE (every doc stays well under 1 MB forever):
+//  HOW IT WORKS:
+//    First open ever  → read Firebase (~150 reads) → save to localStorage
+//    Every open after → load from localStorage (0 Firebase reads)
+//    Every write      → update localStorage immediately + write to Firebase
+//    Other device writes → onSnapshot fires → update store + localStorage
 //
-//    waiters/{waiterId}           ~400 B  — one doc per waiter
-//    transactions/{txnId}         ~400 B  — one doc per transaction
-//    attendance/{YYYY-MM-DD}      ~100 B  — one doc per day
-//    deletedWaiters/{waiterId}    ~500 B  — one doc per deleted waiter (NO array!)
-//    meta/withdrawals             ~60  B  — { pickup, hk, wp }
-//    meta/config                  ~100 B  — { passcode } ONLY — nothing else
-//    users/{userId}               ~200 B  — one doc per user
-//    activityLogs/{logId}         ~150 B  — one doc per log entry
-//
-//  WHY THIS NEVER HITS 1 MB:
-//    • Every doc is a single flat record with fixed fields
-//    • NO arrays that grow over time inside any document
-//    • deleted_waiters[] array is gone — each deleted waiter is its own doc
-//    • archivedTransactions[] is gone — transactions already stored separately
-//    • meta/config only stores passcode (~50 B) — will never grow
-//    • Attendance is per-day (~100 B), not one giant doc
-//
-//  FREE TIER COST (5 users, busy restaurant):
-//    Opens per day  : ~10 × 8 reads  = ~80 reads
-//    Payments/day   : ~20 × 2 writes = ~40 writes
-//    Attendance/day : ~30 × 1 write  = ~30 writes
-//    Logs/day       : ~50 × 1 write  = ~50 writes
-//    TOTAL          : ~80 reads, ~120 writes  <<< 50k/20k daily limit
+//  STRUCTURE:
+//    waiters/{waiterId}           ~400 B
+//    transactions/{txnId}         ~400 B
+//    attendance/{YYYY-MM-DD}      ~100 B
+//    deletedWaiters/{waiterId}    ~500 B
+//    meta/withdrawals             ~60  B
+//    meta/config                  ~100 B
+//    users/{userId}               ~200 B
+//    activityLogs/{logId}         ~150 B
 // ═══════════════════════════════════════════════
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
@@ -41,7 +32,7 @@ import {
   getFirestore,
   collection, doc,
   setDoc, getDoc, getDocs, deleteDoc, writeBatch,
-  onSnapshot
+  onSnapshot, query, where
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -61,18 +52,53 @@ const _col = {
   waiters:        () => collection(_db, 'waiters'),
   transactions:   () => collection(_db, 'transactions'),
   attendance:     () => collection(_db, 'attendance'),
-  deletedWaiters: () => collection(_db, 'deletedWaiters'),  // NEW — replaces deleted_waiters array
+  deletedWaiters: () => collection(_db, 'deletedWaiters'),
   users:          () => collection(_db, 'users'),
   activityLogs:   () => collection(_db, 'activityLogs'),
 };
-// meta docs — tiny, fixed-size only
 const _withdrawalsRef = () => doc(_db, 'meta', 'withdrawals');
-const _configRef      = () => doc(_db, 'meta', 'config');    // passcode ONLY
+const _configRef      = () => doc(_db, 'meta', 'config');
+const _leavesRef      = () => collection(_db, 'leaves');
 
-// ── Leave collection ──
-// leaves/{leaveId}  ~300 B — one doc per leave record
-// { id, waiterId, waiterName, startDate, endDate|null, active, createdAt, endedAt|null }
-const _leavesRef = () => collection(_db, 'leaves');
+// ══════════════════════════════════════════════
+//  LOCAL STORAGE CACHE LAYER
+//  Key: 'tipflow_store'
+//  All main data lives here after first load.
+//  Reads from localStorage = 0 Firebase reads.
+//  onSnapshot listeners update localStorage when
+//  another device writes so cache stays fresh.
+// ══════════════════════════════════════════════
+
+const LS_KEY = 'tipflow_store';
+
+function _lsGet() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const data = parsed.data || null;
+    // Validity check: must have at least the core store shape
+    // An empty {} from a previous _fbLoadUsers pollution would pass if it had these keys
+    if (!data || typeof data !== 'object') return null;
+    // Must have waiters array (even if empty) to be a valid store
+    if (!Array.isArray(data.waiters)) return null;
+    return data;
+  } catch(e) { return null; }
+}
+
+function _lsSet(data) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({ data, savedAt: Date.now() }));
+  } catch(e) {
+    console.warn('TipFlow: localStorage write failed (storage full?):', e);
+  }
+}
+
+// Wipe cache — used after CSV import so next load re-reads Firebase
+window._fbClearLocalCache = () => {
+  try { localStorage.removeItem(LS_KEY); } catch(e) {}
+  // Note: intentionally keep tipflow_users — users rarely change via CSV
+};
 
 // ══════════════════════════════════════════════
 //  SYNC DOT
@@ -95,10 +121,22 @@ function setSyncDot(color) {
 window.setSyncDot = setSyncDot;
 
 // ══════════════════════════════════════════════
-//  LOAD ALL DATA  →  assembles store-shaped object
-//  8 parallel reads on startup — very fast
+//  LOAD ALL DATA
+//  Step 1 — check localStorage: if found, return instantly (0 Firebase reads)
+//  Step 2 — localStorage empty (first ever open): read Firebase, save to localStorage
 // ══════════════════════════════════════════════
 window._fbLoadData = async () => {
+
+  // ── STEP 1: Try localStorage first ──
+  const cached = _lsGet();
+  if (cached) {
+    console.log('TipFlow: Loaded from localStorage — 0 Firebase reads.');
+    return cached;
+  }
+
+  // ── STEP 2: First open — read from Firebase ──
+  console.log('TipFlow: First open — reading from Firebase...');
+
   const [
     waitersSnap, txnsSnap, attSnap,
     delWaitersSnap, wdSnap, cfgSnap, leavesSnap
@@ -112,9 +150,7 @@ window._fbLoadData = async () => {
     getDocs(_leavesRef()),
   ]);
 
-  // ── If new collections are empty, check old single-doc location ──
-  // Old location: myData/latest (stored everything in one big document)
-  // This is the one-time migration path for users upgrading from the old structure
+  // ── One-time migration from old single-doc structure ──
   if (waitersSnap.docs.length === 0 && txnsSnap.docs.length === 0) {
     try {
       const oldDoc = await getDoc(doc(_db, 'myData', 'latest'));
@@ -147,23 +183,25 @@ window._fbLoadData = async () => {
           if (old.withdrawals) {
             await bset(_withdrawalsRef(), { ...old.withdrawals, _t: Date.now() });
           }
-          // Migrate passcode from old config doc
           const oldCfg = await getDoc(doc(_db, 'myData', 'config')).catch(() => null);
           const oldPc  = oldCfg?.exists() ? oldCfg.data().passcode : (old._passcode || null);
           if (oldPc) await bset(_configRef(), { passcode: oldPc, _t: Date.now() });
 
           await flush();
-          console.log('TipFlow: Migration complete. Old data preserved in myData/latest.');
+          console.log('TipFlow: Migration complete.');
 
-          // Return the migrated data directly — no need to re-read
-          return {
+          const migratedData = {
             waiters:        old.waiters || [],
             transactions:   (old.transactions || []).sort((a,b) => new Date(b.date) - new Date(a.date)),
             attendance:     old.attendance || {},
             withdrawals:    { pickup:0, hk:0, wp:0, ...(old.withdrawals || {}) },
             deleted_waiters: (old.deleted_waiters || []).map(({ archivedTransactions, ...r }) => r),
+            leaves:         [],
             _passcode:      oldPc
           };
+          // Save migrated data to localStorage so next open costs 0 reads
+          _lsSet(migratedData);
+          return migratedData;
         }
       }
     } catch(e) {
@@ -171,42 +209,33 @@ window._fbLoadData = async () => {
     }
   }
 
-  // ── Normal path — read from new collections ──
-  const waiters = waitersSnap.docs.map(d => {
-    const { _t, ...r } = d.data(); return r;
-  });
+  // ── Normal first-open path — assemble from Firebase snaps ──
+  function stripT(d) { const { _t, ...r } = d.data(); return r; }
 
-  const transactions = txnsSnap.docs.map(d => {
-    const { _t, ...r } = d.data(); return r;
-  }).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const data = {
+    waiters: waitersSnap.docs.map(stripT),
+    transactions: txnsSnap.docs.map(stripT).sort((a, b) => new Date(b.date) - new Date(a.date)),
+    attendance: Object.fromEntries(attSnap.docs.map(d => {
+      const { _t, ...r } = d.data(); return [d.id, r];
+    })),
+    deleted_waiters: delWaitersSnap.docs.map(stripT).sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt)),
+    withdrawals: wdSnap.exists()
+      ? { pickup:0, hk:0, wp:0, ...(() => { const { _t, ...r } = wdSnap.data(); return r; })() }
+      : { pickup:0, hk:0, wp:0 },
+    leaves: leavesSnap.docs.map(stripT).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+    _passcode: cfgSnap.exists() ? (cfgSnap.data().passcode || null) : null,
+  };
 
-  const attendance = {};
-  attSnap.docs.forEach(d => {
-    const { _t, ...r } = d.data();
-    attendance[d.id] = r;
-  });
+  // ── Save to localStorage — all future opens cost 0 Firebase reads ──
+  _lsSet(data);
+  console.log('TipFlow: Firebase data saved to localStorage. Future opens = 0 reads.');
 
-  const deleted_waiters = delWaitersSnap.docs.map(d => {
-    const { _t, ...r } = d.data(); return r;
-  }).sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
-
-  const withdrawals = wdSnap.exists()
-    ? { pickup:0, hk:0, wp:0, ...(() => { const { _t, ...r } = wdSnap.data(); return r; })() }
-    : { pickup:0, hk:0, wp:0 };
-
-  const cfg      = cfgSnap.exists() ? cfgSnap.data() : {};
-  const passcode = cfg.passcode || null;
-
-  const leaves = leavesSnap.docs.map(d => {
-    const { _t, ...r } = d.data(); return r;
-  }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-  return { waiters, transactions, attendance, withdrawals, deleted_waiters, leaves, _passcode: passcode };
+  return data;
 };
 
 // ══════════════════════════════════════════════
 //  FULL SAVE (CSV import / bulk operations only)
-//  Normal usage uses targeted saves below.
+//  Also rewrites localStorage with the new store.
 // ══════════════════════════════════════════════
 window._fbSaveData = async (store) => {
   const MAX_BATCH = 490;
@@ -222,94 +251,131 @@ window._fbSaveData = async (store) => {
     if (ops >= MAX_BATCH) await flush();
   };
 
-  // 1. Waiters
   for (const w of (store.waiters || [])) {
     await batchSet(doc(_col.waiters(), w.id), { ...w, _t: Date.now() });
   }
-
-  // 2. Transactions — snapshot field kept but archivedTransactions stripped (already in txns)
   for (const t of (store.transactions || [])) {
     const { archivedTransactions, ...safe } = t;
     await batchSet(doc(_col.transactions(), t.id), { ...safe, _t: Date.now() });
   }
-
-  // 3. Attendance — one doc per day
   for (const [date, dayData] of Object.entries(store.attendance || {})) {
     const keys = Object.keys(dayData).filter(k => k !== '_t');
     if (keys.length > 0) {
       await batchSet(doc(_col.attendance(), date), { ...dayData, _t: Date.now() });
     }
   }
-
-  // 4. Deleted waiters — one doc per deleted waiter (NO archivedTransactions)
   for (const dw of (store.deleted_waiters || [])) {
     const { archivedTransactions, _t, ...safe } = dw;
     await batchSet(doc(_col.deletedWaiters(), dw.id), { ...safe, _t: Date.now() });
   }
-
-  // 5. Withdrawals
   await batchSet(_withdrawalsRef(), { ...store.withdrawals, _t: Date.now() });
-
-  // 6. Config — passcode ONLY, nothing else, fixed tiny size
   await batchSet(_configRef(), {
     passcode: store._passcode || window._cachedPasscodeMeta || '1234',
     _t: Date.now()
   });
 
   await flush();
+
+  // Rewrite localStorage with the full updated store
+  _lsSet(store);
 };
 
 // ══════════════════════════════════════════════
-//  TARGETED SAVES — used for every normal action
-//  Each write touches only 1–2 small documents.
+//  TARGETED SAVES
+//  Every save: patch localStorage immediately,
+//  then write to Firebase in the background.
+//  Pattern: update LS first (instant UI) → write FB (background)
 // ══════════════════════════════════════════════
 
-// Single waiter doc (~400 B)
+// ── Waiters ──
 window._fbSaveWaiter = async (waiter) => {
+  const cached = _lsGet();
+  if (cached) {
+    cached.waiters = cached.waiters || [];
+    const idx = cached.waiters.findIndex(w => w.id === waiter.id);
+    if (idx >= 0) cached.waiters[idx] = waiter;
+    else cached.waiters.push(waiter);
+    _lsSet(cached);
+  }
   await setDoc(doc(_col.waiters(), waiter.id), { ...waiter, _t: Date.now() });
 };
 
-// Delete waiter doc
 window._fbDeleteWaiter = async (waiterId) => {
+  const cached = _lsGet();
+  if (cached) {
+    cached.waiters = (cached.waiters || []).filter(w => w.id !== waiterId);
+    _lsSet(cached);
+  }
   await deleteDoc(doc(_col.waiters(), waiterId));
 };
 
-// Save deleted waiter snapshot as its own doc (~500 B, NO archivedTransactions array)
 window._fbSaveDeletedWaiter = async (snapshot) => {
   const { archivedTransactions, _t, ...safe } = snapshot;
+  const cached = _lsGet();
+  if (cached) {
+    cached.deleted_waiters = cached.deleted_waiters || [];
+    const idx = cached.deleted_waiters.findIndex(w => w.id === safe.id);
+    if (idx >= 0) cached.deleted_waiters[idx] = safe;
+    else cached.deleted_waiters.unshift(safe);
+    _lsSet(cached);
+  }
   await setDoc(doc(_col.deletedWaiters(), snapshot.id), { ...safe, _t: Date.now() });
 };
 
-// Single transaction doc (~400 B, snapshot field is small — just waiter fields, no txn array)
+// ── Transactions ──
 window._fbSaveTransaction = async (txn) => {
   const { archivedTransactions, ...safe } = txn;
+  const cached = _lsGet();
+  if (cached) {
+    cached.transactions = cached.transactions || [];
+    const idx = cached.transactions.findIndex(t => t.id === safe.id);
+    if (idx >= 0) cached.transactions[idx] = safe;
+    else cached.transactions.unshift(safe);
+    _lsSet(cached);
+  }
   await setDoc(doc(_col.transactions(), txn.id), { ...safe, _t: Date.now() });
 };
 
-// Delete all transactions for a waiter (hard delete)
+// Uses where() query — reads only matching docs, NOT the whole collection
 window._fbDeleteWaiterTransactions = async (waiterId) => {
-  const snap = await getDocs(_col.transactions());
+  const cached = _lsGet();
+  if (cached) {
+    cached.transactions = (cached.transactions || []).filter(t => t.waiterId !== waiterId);
+    _lsSet(cached);
+  }
+  const q = query(_col.transactions(), where('waiterId', '==', waiterId));
+  const snap = await getDocs(q);
   const b = writeBatch(_db);
-  let ops = 0;
-  snap.docs.filter(d => d.data().waiterId === waiterId).forEach(d => {
-    b.delete(d.ref); ops++;
-  });
-  if (ops > 0) await b.commit();
+  snap.docs.forEach(d => b.delete(d.ref));
+  if (snap.docs.length > 0) await b.commit();
 };
 
-// Soft-update waiter name in transactions
+// Uses where() query — reads only matching docs, NOT the whole collection
 window._fbSoftUpdateTransactions = async (waiterId, newName) => {
-  const snap = await getDocs(_col.transactions());
+  const cached = _lsGet();
+  if (cached) {
+    cached.transactions = (cached.transactions || []).map(t =>
+      t.waiterId === waiterId ? { ...t, waiterName: newName } : t
+    );
+    _lsSet(cached);
+  }
+  const q = query(_col.transactions(), where('waiterId', '==', waiterId));
+  const snap = await getDocs(q);
   const b = writeBatch(_db);
-  let ops = 0;
-  snap.docs.filter(d => d.data().waiterId === waiterId).forEach(d => {
-    b.update(d.ref, { waiterId: null, waiterName: newName }); ops++;
-  });
-  if (ops > 0) await b.commit();
+  snap.docs.forEach(d => b.update(d.ref, { waiterName: newName }));
+  if (snap.docs.length > 0) await b.commit();
 };
 
-// Single attendance day doc (~100 B)
+// ── Attendance ──
 window._fbSaveAttendanceDay = async (dateStr, dayData) => {
+  const cached = _lsGet();
+  if (cached) {
+    cached.attendance = cached.attendance || {};
+    const keys = Object.keys(dayData).filter(k => k !== '_t');
+    if (keys.length === 0) delete cached.attendance[dateStr];
+    else cached.attendance[dateStr] = dayData;
+    _lsSet(cached);
+  }
   const keys = Object.keys(dayData).filter(k => k !== '_t');
   if (keys.length === 0) {
     await deleteDoc(doc(_col.attendance(), dateStr));
@@ -318,77 +384,123 @@ window._fbSaveAttendanceDay = async (dateStr, dayData) => {
   }
 };
 
-// Withdrawals meta (~60 B)
+// ── Withdrawals ──
 window._fbSaveWithdrawals = async (wd) => {
+  const cached = _lsGet();
+  if (cached) { cached.withdrawals = wd; _lsSet(cached); }
   await setDoc(_withdrawalsRef(), { ...wd, _t: Date.now() });
 };
 
-// Config — passcode ONLY (~60 B, fixed forever)
+// ── Config / Passcode ──
 window._fbSaveConfig = async (passcode) => {
   window._cachedPasscodeMeta = passcode;
+  const cached = _lsGet();
+  if (cached) { cached._passcode = passcode; _lsSet(cached); }
   await setDoc(_configRef(), { passcode, _t: Date.now() });
 };
 
-// ── Leave records (~300 B each) ──
+window._fbLoadPasscode = async () => {
+  // Try localStorage first
+  const cached = _lsGet();
+  if (cached && cached._passcode) return cached._passcode;
+  const s = await getDoc(_configRef());
+  return s.exists() ? (s.data().passcode || null) : null;
+};
+
+window._fbSavePasscode = async (code) => {
+  window._cachedPasscodeMeta = code;
+  const cached = _lsGet();
+  if (cached) { cached._passcode = code; _lsSet(cached); }
+  await setDoc(_configRef(), { passcode: code, _t: Date.now() });
+};
+
+// ── Leave records ──
 window._fbSaveLeave = async (leave) => {
+  const cached = _lsGet();
+  if (cached) {
+    cached.leaves = cached.leaves || [];
+    const idx = cached.leaves.findIndex(l => l.id === leave.id);
+    if (idx >= 0) cached.leaves[idx] = leave;
+    else cached.leaves.unshift(leave);
+    _lsSet(cached);
+  }
   await setDoc(doc(_leavesRef(), leave.id), { ...leave, _t: Date.now() });
 };
+
 window._fbDeleteLeave = async (leaveId) => {
+  const cached = _lsGet();
+  if (cached) {
+    cached.leaves = (cached.leaves || []).filter(l => l.id !== leaveId);
+    _lsSet(cached);
+  }
   await deleteDoc(doc(_leavesRef(), leaveId));
 };
+
 window._fbStartLeavesListener = () => {
   return onSnapshot(_leavesRef(), snap => {
     if (window._fbConsumeWrite()) return;
     const S = window._getStore && window._getStore();
     if (!S) return;
-    S.leaves = snap.docs.map(d => { const { _t, ...r } = d.data(); return r; })
-                         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const leaves = snap.docs.map(d => { const { _t, ...r } = d.data(); return r; })
+                             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    S.leaves = leaves;
+    // Keep localStorage in sync
+    const cached = _lsGet();
+    if (cached) { cached.leaves = leaves; _lsSet(cached); }
     window._triggerRenderAll && window._triggerRenderAll();
   }, () => {});
 };
 
-// ── Passcode helpers ──
-window._fbLoadPasscode = async () => {
-  const s = await getDoc(_configRef());
-  return s.exists() ? (s.data().passcode || null) : null;
-};
-window._fbSavePasscode = async (code) => {
-  window._cachedPasscodeMeta = code;
-  await setDoc(_configRef(), { passcode: code, _t: Date.now() });
-};
+// ── Users — stored under a separate LS key to avoid polluting main store cache ──
+const LS_USERS_KEY = 'tipflow_users';
 
-// ── Users ──
+function _lsGetUsers() {
+  try {
+    const raw = localStorage.getItem(LS_USERS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+function _lsSetUsers(users) {
+  try { localStorage.setItem(LS_USERS_KEY, JSON.stringify(users)); } catch(e) {}
+}
+
 window._fbLoadUsers = async () => {
-  // Try new collection first
+  // Check dedicated users cache first
+  const cached = _lsGetUsers();
+  if (cached && cached.length > 0) {
+    return cached;
+  }
+  // Firebase fallback (first open or cache miss)
   const snap = await getDocs(_col.users());
   if (snap.docs.length > 0) {
-    return snap.docs.map(d => { const { _t, ...r } = d.data(); return r; });
+    const users = snap.docs.map(d => { const { _t, ...r } = d.data(); return r; });
+    _lsSetUsers(users);
+    return users;
   }
-
-  // NEW collection is empty — check OLD single-doc location (myData/users)
-  // This handles migration from the previous storage structure
+  // Old migration path
   try {
     const oldDoc = await getDoc(doc(_db, 'myData', 'users'));
     if (oldDoc.exists()) {
       const oldUsers = oldDoc.data().users || [];
       if (oldUsers.length > 0) {
-        console.log('TipFlow: Migrating', oldUsers.length, 'users from old location to new collection...');
-        // Write each user to the new collection
+        console.log('TipFlow: Migrating', oldUsers.length, 'users from old location...');
         const b = writeBatch(_db);
         oldUsers.forEach(u => b.set(doc(_col.users(), u.userId), { ...u, _t: Date.now() }));
         await b.commit();
-        console.log('TipFlow: User migration complete.');
+        _lsSetUsers(oldUsers);
         return oldUsers;
       }
     }
   } catch(e) {
     console.warn('TipFlow: Could not check old user location:', e);
   }
-
-  // Nothing found anywhere — return empty (caller will create default admin)
   return [];
 };
+
 window._fbSaveUsers = async (usersArr) => {
+  // Update users cache immediately
+  _lsSetUsers(usersArr);
+  // Firebase: delete removed users, upsert all current users
   const existing = await getDocs(_col.users());
   const b = writeBatch(_db);
   const newIds = new Set(usersArr.map(u => u.userId));
@@ -398,13 +510,14 @@ window._fbSaveUsers = async (usersArr) => {
 };
 
 // ── Activity Logs ──
+// Logs are load-on-demand only (no startup reads, no persistent listener)
 window._fbLoadLogs = async () => {
   const snap = await getDocs(_col.activityLogs());
   return snap.docs.map(d => { const { _t, ...r } = d.data(); return r; })
                    .sort((a, b) => new Date(b.ts) - new Date(a.ts));
 };
-// Single log doc (~150 B) — used by pushLog for every event
 window._fbSaveLog = async (logEntry) => {
+  // Logs intentionally not saved to localStorage (view-only, can be large)
   await setDoc(doc(_col.activityLogs(), logEntry.id), { ...logEntry, _t: Date.now() });
 };
 window._fbClearLogs = async () => {
@@ -416,8 +529,10 @@ window._fbClearLogs = async () => {
 
 // ══════════════════════════════════════════════
 //  REAL-TIME LISTENERS
-//  Counter-based guard prevents echo from local writes.
-//  (Multiple listeners each need one consume per write)
+//  Runs silently after load.
+//  When another device writes → listener fires →
+//  updates in-memory store + patches localStorage
+//  so the next open on this device also gets fresh data.
 // ══════════════════════════════════════════════
 window._fbLocalWrite = 0;
 window._fbMarkWrite    = (n) => { window._fbLocalWrite += n; };
@@ -431,43 +546,57 @@ function _stripT(data) { const { _t, ...r } = data; return r; }
 function _applyCollectionSnap(name, snap) {
   const S = window._getStore && window._getStore();
   if (!S) return;
+
+  let newData;
   if (name === 'waiters') {
-    S.waiters = snap.docs.map(d => _stripT(d.data()));
+    newData = snap.docs.map(d => _stripT(d.data()));
+    S.waiters = newData;
   }
   if (name === 'transactions') {
-    S.transactions = snap.docs.map(d => _stripT(d.data()))
-                              .sort((a, b) => new Date(b.date) - new Date(a.date));
+    newData = snap.docs.map(d => _stripT(d.data())).sort((a, b) => new Date(b.date) - new Date(a.date));
+    S.transactions = newData;
   }
   if (name === 'attendance') {
-    S.attendance = {};
-    snap.docs.forEach(d => { S.attendance[d.id] = _stripT(d.data()); });
+    newData = {};
+    snap.docs.forEach(d => { newData[d.id] = _stripT(d.data()); });
+    S.attendance = newData;
   }
   if (name === 'deletedWaiters') {
-    S.deleted_waiters = snap.docs.map(d => _stripT(d.data()))
-                                  .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
+    newData = snap.docs.map(d => _stripT(d.data())).sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
+    S.deleted_waiters = newData;
+  }
+
+  // Patch localStorage so next open on this device is fresh
+  const lsKey = { waiters:'waiters', transactions:'transactions', attendance:'attendance', deletedWaiters:'deleted_waiters' }[name];
+  if (lsKey && newData !== undefined) {
+    const cached = _lsGet();
+    if (cached) { cached[lsKey] = newData; _lsSet(cached); }
   }
 }
 
 window._fbStartMainListener = () => {
   const unsubs = [];
-  const rerender = () => { window._triggerRenderAll && window._triggerRenderAll(); setSyncDot('green'); };
   const onerr    = () => setSyncDot('red');
 
   ['waiters','transactions','attendance','deletedWaiters'].forEach(name => {
     unsubs.push(onSnapshot(_col[name](), snap => {
-      if (window._fbConsumeWrite()) return;
+      setSyncDot('green'); // always mark connected on any listener fire
+      if (window._fbConsumeWrite()) return; // skip re-render if we wrote it ourselves
       _applyCollectionSnap(name, snap);
-      rerender();
+      window._triggerRenderAll && window._triggerRenderAll();
     }, onerr));
   });
 
-  // withdrawals meta listener
   unsubs.push(onSnapshot(_withdrawalsRef(), snap => {
+    setSyncDot('green');
     if (window._fbConsumeWrite()) return;
     const S = window._getStore && window._getStore();
     if (!S || !snap.exists()) return;
-    S.withdrawals = { pickup:0, hk:0, wp:0, ..._stripT(snap.data()) };
-    rerender();
+    const wd = { pickup:0, hk:0, wp:0, ..._stripT(snap.data()) };
+    S.withdrawals = wd;
+    const cached = _lsGet();
+    if (cached) { cached.withdrawals = wd; _lsSet(cached); }
+    window._triggerRenderAll && window._triggerRenderAll();
   }, onerr));
 
   return unsubs;
@@ -476,6 +605,8 @@ window._fbStartMainListener = () => {
 window._fbStartUsersListener = () => {
   return onSnapshot(_col.users(), snap => {
     const users = snap.docs.map(d => _stripT(d.data()));
+    // Sync to dedicated users cache (NOT main store cache)
+    _lsSetUsers(users);
     window._applyRemoteUsers && window._applyRemoteUsers(users);
     setSyncDot('green');
   }, () => setSyncDot('red'));
@@ -485,17 +616,18 @@ window._fbStartPasscodeListener = () => {
   return onSnapshot(_configRef(), snap => {
     if (!snap.exists()) return;
     const pc = snap.data().passcode;
-    if (pc && window._applyRemotePasscode) window._applyRemotePasscode(pc);
+    if (pc) {
+      // Patch into main store cache if it exists
+      const cached = _lsGet();
+      if (cached) { cached._passcode = pc; _lsSet(cached); }
+      window._applyRemotePasscode && window._applyRemotePasscode(pc);
+    }
   });
 };
 
-window._fbStartLogsListener = () => {
-  return onSnapshot(_col.activityLogs(), snap => {
-    const logs = snap.docs.map(d => _stripT(d.data()))
-                          .sort((a, b) => new Date(b.ts) - new Date(a.ts));
-    window._applyRemoteLogs && window._applyRemoteLogs(logs);
-  }, err => console.error('Logs listener:', err));
-};
+// Logs listener removed — logs are load-on-demand only.
+// This stub keeps compatibility with any call to _fbStartLogsListener.
+window._fbStartLogsListener = () => {};
 
 // Signal ready
 window._fbReady = true;
@@ -3388,12 +3520,12 @@ window._applyRemoteLogs = (logs) => {
   }
 };
 
-// Start all 4 real-time listeners (called from init)
+// Start all real-time listeners (called from init)
+// NOTE: logs listener removed — logs are load-on-demand only (saves reads)
 function startRealtimeListeners() {
   if (window._fbStartMainListener)     window._fbStartMainListener();
   if (window._fbStartUsersListener)    window._fbStartUsersListener();
   if (window._fbStartPasscodeListener) window._fbStartPasscodeListener();
-  if (window._fbStartLogsListener)     window._fbStartLogsListener();
   if (window._fbStartLeavesListener)   window._fbStartLeavesListener();
 }
 
@@ -4719,7 +4851,20 @@ function showPage(page) {
   if (page === 'history') renderHistory();
   if (page === 'dashboard') renderDashboard();
   if (page === 'waiters') renderWaiters();
-  if (page === 'activity-logs') renderActivityLogs();
+  if (page === 'activity-logs') {
+    // Load logs fresh from Firebase each time the page is visited (load-on-demand)
+    if (window._fbLoadLogs) {
+      window._fbLoadLogs().then(logs => {
+        _activityLogs = logs;
+        renderActivityLogs();
+      }).catch(e => {
+        console.error('Failed to load logs:', e);
+        renderActivityLogs(); // still render with whatever we have in memory
+      });
+    } else {
+      renderActivityLogs();
+    }
+  }
   if (page === 'reports') renderReports();
 }
 
@@ -5001,6 +5146,7 @@ async function importCSVBackup() {
 
       preTxt.textContent = `Replaced with ${incomingWaiters.length} waiters & ${incomingTxns.length} transactions.`;
       preEl.style.display = 'flex';
+      window._fbClearLocalCache && window._fbClearLocalCache(); // force fresh Firebase read next open
       save();
       closeModal('importModal');
       showToast(`Data replaced: ${incomingWaiters.length} waiters, ${incomingTxns.length} transactions`, 'success');
@@ -5036,6 +5182,7 @@ async function importCSVBackup() {
 
       preTxt.textContent = summary;
       preEl.style.display = 'flex';
+      window._fbClearLocalCache && window._fbClearLocalCache(); // force fresh Firebase read next open
       save();
       closeModal('importModal');
       showToast(`Merge complete: +${newWaiters.length} waiters, +${newTxns.length} transactions`, 'success');
@@ -6288,7 +6435,7 @@ showPage = function(page) {
   if (page === 'users')           renderUsersTable();
   if (page === 'staff-dashboard') renderStaffDashboard();
   if (page === 'attendance')      renderAttendance();
-  if (page === 'activity-logs')   renderActivityLogs();
+  // activity-logs: handled in _origShowPage with load-on-demand (no duplicate call needed)
   if (page === 'leave')           renderLeave();
   // Re-apply withdrawal view in case role changed
   if (page === 'withdrawal' && _currentUser) {
